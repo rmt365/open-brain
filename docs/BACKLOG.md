@@ -43,9 +43,10 @@ _(none)_
 | Field | Value |
 |-------|-------|
 | **ID** | OB-009 |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | high |
 | **Plan file** | `.claude/plans/melodic-swimming-mochi.md` |
+| **Completed** | Mar 11, 2026 |
 
 Deploy Open Brain as fully independent instances on the production droplet, decoupled from the P2B platform stack.
 
