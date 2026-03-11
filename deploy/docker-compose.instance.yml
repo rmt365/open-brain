@@ -1,0 +1,94 @@
+# Open Brain Instance Template
+# Usage: INSTANCE_NAME=robin-brain SUBDOMAIN=robin docker compose -f deploy/docker-compose.instance.yml up -d
+#
+# Required env vars (from .env file):
+#   INSTANCE_NAME     - Container name prefix (e.g., robin-brain)
+#   SUBDOMAIN         - Traefik subdomain (e.g., robin → robin.brain.cerulean.studio)
+#   ANTHROPIC_API_KEY - For thought classification
+#   OPEN_BRAIN_API_KEY - API key for this instance
+
+services:
+  open-brain:
+    image: ghcr.io/rmt365/open-brain/brain:latest
+    container_name: ${INSTANCE_NAME}
+    environment:
+      - PORT=3012
+      - DATABASE_PATH=/app/database/open-brain.db
+      - OLLAMA_URL=http://ob-ollama:11434
+      - EMBEDDING_MODEL=all-minilm
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPEN_BRAIN_API_KEY=${OPEN_BRAIN_API_KEY}
+      - SERVICE_NAME=${INSTANCE_NAME}
+      - ENABLE_LITESTREAM=${ENABLE_LITESTREAM:-true}
+      - ENVIRONMENT=production
+      - WASABI_ENDPOINT=${WASABI_ENDPOINT:-https://s3.wasabisys.com}
+      - WASABI_REGION=${WASABI_REGION:-us-east-1}
+      - WASABI_BUCKET=${WASABI_BUCKET}
+      - WASABI_ACCESS_KEY_ID=${WASABI_ACCESS_KEY_ID}
+      - WASABI_SECRET_ACCESS_KEY=${WASABI_SECRET_ACCESS_KEY}
+    volumes:
+      - /root/open-brain/data/${INSTANCE_NAME}:/app/database
+    networks:
+      - ob-network
+      - traefik-public
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3012/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${INSTANCE_NAME}.rule=Host(`${SUBDOMAIN}.brain.cerulean.studio`)"
+      - "traefik.http.routers.${INSTANCE_NAME}.entrypoints=websecure"
+      - "traefik.http.routers.${INSTANCE_NAME}.tls.certresolver=le"
+      - "traefik.http.services.${INSTANCE_NAME}.loadbalancer.server.port=3012"
+
+  mcp:
+    image: ghcr.io/rmt365/open-brain/mcp:latest
+    container_name: ${INSTANCE_NAME}-mcp
+    environment:
+      - OPEN_BRAIN_URL=http://${INSTANCE_NAME}:3012
+      - OPEN_BRAIN_API_KEY=${OPEN_BRAIN_API_KEY}
+    depends_on:
+      open-brain:
+        condition: service_healthy
+    networks:
+      - ob-network
+      - traefik-public
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3013/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp.rule=Host(`${SUBDOMAIN}.brain.cerulean.studio`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp.entrypoints=websecure"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp.tls.certresolver=le"
+      - "traefik.http.services.${INSTANCE_NAME}-mcp.loadbalancer.server.port=3013"
+
+  telegram:
+    image: ghcr.io/rmt365/open-brain/telegram:latest
+    container_name: ${INSTANCE_NAME}-telegram
+    environment:
+      - OPEN_BRAIN_URL=http://${INSTANCE_NAME}:3012
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
+    depends_on:
+      open-brain:
+        condition: service_healthy
+    networks:
+      - ob-network
+    restart: unless-stopped
+    profiles:
+      - telegram
+
+networks:
+  ob-network:
+    external: true
+  traefik-public:
+    external: true

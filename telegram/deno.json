@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "grammy": "https://deno.land/x/grammy@v1.30.0/mod.ts",
+    "grammy/types": "https://deno.land/x/grammy@v1.30.0/types.ts"
+  },
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env --allow-read --allow-import --watch src/main.ts"
+  }
+}

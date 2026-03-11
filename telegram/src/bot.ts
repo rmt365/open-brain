@@ -1,0 +1,67 @@
+import { Bot, Context } from "grammy";
+import { handleCapture } from "./handlers/capture.ts";
+import { handleSearch } from "./handlers/search.ts";
+import { handleRecent } from "./handlers/recent.ts";
+
+/**
+ * Check if a user is allowed to use the bot.
+ * If TELEGRAM_ALLOWED_USERS is set, only those user IDs are permitted.
+ */
+function isAuthorized(ctx: Context): boolean {
+  const allowedUsersEnv = Deno.env.get("TELEGRAM_ALLOWED_USERS");
+  if (!allowedUsersEnv) return true;
+
+  const allowedIds = allowedUsersEnv
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  if (allowedIds.length === 0) return true;
+
+  const userId = ctx.from?.id;
+  if (!userId) return false;
+
+  return allowedIds.includes(String(userId));
+}
+
+export function setupBot(bot: Bot, openBrainUrl: string): void {
+  // Set bot commands for the menu
+  bot.api.setMyCommands([
+    { command: "start", description: "Welcome message and command list" },
+    { command: "search", description: "Semantic search your thoughts" },
+    { command: "recent", description: "List your last 10 thoughts" },
+  ]);
+
+  // Authorization middleware
+  bot.use(async (ctx, next) => {
+    if (!isAuthorized(ctx)) {
+      await ctx.reply(
+        "Sorry, you are not authorized to use this bot. Contact the administrator to get access.",
+      );
+      return;
+    }
+    await next();
+  });
+
+  // /start command
+  bot.command("start", async (ctx) => {
+    const name = ctx.from?.first_name || "there";
+    await ctx.reply(
+      `Hello ${name}! I'm your Open Brain capture bot.\n\n` +
+        `Just send me any text and I'll capture it as a thought.\n\n` +
+        `Commands:\n` +
+        `/search <query> - Search your thoughts\n` +
+        `/recent - Show your last 10 thoughts\n\n` +
+        `Try it out -- send me something you're thinking about.`,
+    );
+  });
+
+  // /search command
+  bot.command("search", (ctx) => handleSearch(ctx, openBrainUrl));
+
+  // /recent command
+  bot.command("recent", (ctx) => handleRecent(ctx, openBrainUrl));
+
+  // Default text handler -- capture as thought
+  bot.on("message:text", (ctx) => handleCapture(ctx, openBrainUrl));
+}

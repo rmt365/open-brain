@@ -1,0 +1,98 @@
+# Open Brain - Standalone Docker Compose
+# Runs Open Brain independently with its own Ollama.
+#
+# Usage:
+#   cp .env.example .env   # fill in ANTHROPIC_API_KEY
+#   docker compose up -d --build
+#   docker exec open-brain-ollama-1 ollama pull all-minilm
+#   open http://localhost:3012/ui/brain
+
+services:
+  open-brain:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3012:3012"
+    env_file:
+      - .env
+    environment:
+      - PORT=3012
+      - DATABASE_PATH=/app/database/open-brain.db
+      - OLLAMA_URL=http://ollama:11434
+      - EMBEDDING_MODEL=all-minilm
+    volumes:
+      - ob-data:/app/database
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - ob-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3012/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  open-brain-mcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mcp
+    ports:
+      - "3013:3013"
+    env_file:
+      - .env
+    environment:
+      - OPEN_BRAIN_URL=http://open-brain:3012
+    depends_on:
+      - open-brain
+    networks:
+      - ob-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3013/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  open-brain-telegram:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.telegram
+    env_file:
+      - .env
+    environment:
+      - OPEN_BRAIN_URL=http://open-brain:3012
+    depends_on:
+      - open-brain
+    networks:
+      - ob-network
+    restart: unless-stopped
+    profiles:
+      - telegram
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ob-network
+    restart: unless-stopped
+
+volumes:
+  ob-data:
+  ollama-models:
+
+networks:
+  ob-network:
+    driver: bridge

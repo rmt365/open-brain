@@ -1,0 +1,267 @@
+// Open Brain - Thought Routes
+// HTTP routes for thought capture, search, CRUD, and stats
+
+import { Hono } from "@hono/hono";
+import { validateJson } from "@p2b/hono-core";
+import {
+  CaptureThoughtSchema,
+  UpdateThoughtSchema,
+  SearchThoughtsSchema,
+} from "../schemas/schemas.ts";
+import type { ThoughtManager } from "../logic/thoughts.ts";
+import type {
+  Thought,
+  SearchResult,
+  BrainStats,
+  ListResponse,
+  ApiResponse,
+  ThoughtType,
+  SourceChannel,
+  ThoughtStatus,
+} from "../types/index.ts";
+
+/**
+ * Create thought routes.
+ * Returns a Hono router to be mounted at /thoughts on the main app.
+ */
+export function createThoughtRoutes(manager: ThoughtManager): Hono {
+  const router = new Hono();
+
+  // ============================================================
+  // STATIC ROUTES (must be defined BEFORE :id to avoid capture)
+  // ============================================================
+
+  // GET /stats — brain statistics
+  router.get("/stats", (c) => {
+    try {
+      const stats = manager.getStats();
+
+      return c.json<ApiResponse<BrainStats>>({
+        success: true,
+        data: stats,
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error getting stats:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // GET /topics — topic list with counts
+  router.get("/topics", (c) => {
+    try {
+      const topics = manager.getTopics();
+
+      return c.json<ApiResponse<Array<{ topic: string; count: number }>>>({
+        success: true,
+        data: topics,
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error getting topics:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // POST /search — semantic search
+  router.post(
+    "/search",
+    validateJson(SearchThoughtsSchema),
+    async (c) => {
+      try {
+        const body = c.req.valid("json");
+        const results = await manager.search(
+          body.query,
+          body.thought_type,
+          body.limit,
+        );
+
+        return c.json<ApiResponse<SearchResult[]>>({
+          success: true,
+          data: results,
+        });
+      } catch (error) {
+        console.error("[OpenBrain:Routes] Error searching thoughts:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        return c.json<ApiResponse>({ success: false, error: msg }, 500);
+      }
+    },
+  );
+
+  // ============================================================
+  // COLLECTION ROUTES
+  // ============================================================
+
+  // POST / — capture a new thought
+  router.post(
+    "/",
+    validateJson(CaptureThoughtSchema),
+    async (c) => {
+      try {
+        const body = c.req.valid("json");
+        const thought = await manager.capture(
+          body.text,
+          body.source_channel,
+          body.metadata,
+          body.thought_type,
+          body.topic,
+        );
+
+        return c.json<ApiResponse<Thought>>(
+          {
+            success: true,
+            data: thought,
+            message: "Thought captured",
+          },
+          201,
+        );
+      } catch (error) {
+        console.error("[OpenBrain:Routes] Error capturing thought:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        return c.json<ApiResponse>({ success: false, error: msg }, 500);
+      }
+    },
+  );
+
+  // GET / — list thoughts (paginated, filterable)
+  router.get("/", (c) => {
+    try {
+      const thought_type = c.req.query("type") as ThoughtType | undefined;
+      const topic = c.req.query("topic");
+      const source_channel = c.req.query("channel") as SourceChannel | undefined;
+      const since = c.req.query("since");
+      const status = c.req.query("status") as ThoughtStatus | undefined;
+      const limit = parseInt(c.req.query("limit") || "50");
+      const offset = parseInt(c.req.query("offset") || "0");
+
+      const result = manager.list({
+        thought_type: thought_type || undefined,
+        topic: topic || undefined,
+        source_channel: source_channel || undefined,
+        since: since || undefined,
+        status: status || undefined,
+        limit: isNaN(limit) ? 50 : Math.min(Math.max(limit, 1), 100),
+        offset: isNaN(offset) ? 0 : Math.max(offset, 0),
+      });
+
+      return c.json<ApiResponse<ListResponse<Thought>>>({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error listing thoughts:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // ============================================================
+  // SINGLE-RESOURCE ROUTES (after static routes)
+  // ============================================================
+
+  // GET /:id — get a single thought
+  router.get("/:id", (c) => {
+    try {
+      const id = c.req.param("id");
+      const thought = manager.get(id);
+
+      if (!thought) {
+        return c.json<ApiResponse>(
+          { success: false, error: "Thought not found" },
+          404,
+        );
+      }
+
+      return c.json<ApiResponse<Thought>>({
+        success: true,
+        data: thought,
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error getting thought:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // PUT /:id — update a thought
+  router.put(
+    "/:id",
+    validateJson(UpdateThoughtSchema),
+    (c) => {
+      try {
+        const id = c.req.param("id");
+        const body = c.req.valid("json");
+
+        const thought = manager.update(id, body);
+
+        if (!thought) {
+          return c.json<ApiResponse>(
+            { success: false, error: "Thought not found" },
+            404,
+          );
+        }
+
+        return c.json<ApiResponse<Thought>>({
+          success: true,
+          data: thought,
+          message: "Thought updated",
+        });
+      } catch (error) {
+        console.error("[OpenBrain:Routes] Error updating thought:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        return c.json<ApiResponse>({ success: false, error: msg }, 500);
+      }
+    },
+  );
+
+  // DELETE /:id — soft-delete a thought
+  router.delete("/:id", (c) => {
+    try {
+      const id = c.req.param("id");
+      const deleted = manager.delete(id);
+
+      if (!deleted) {
+        return c.json<ApiResponse>(
+          { success: false, error: "Thought not found or already deleted" },
+          404,
+        );
+      }
+
+      return c.json<ApiResponse>({
+        success: true,
+        message: "Thought deleted",
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error deleting thought:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // POST /:id/reclassify — re-run AI classification
+  router.post("/:id/reclassify", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const thought = await manager.reclassify(id);
+
+      if (!thought) {
+        return c.json<ApiResponse>(
+          { success: false, error: "Thought not found" },
+          404,
+        );
+      }
+
+      return c.json<ApiResponse<Thought>>({
+        success: true,
+        data: thought,
+        message: "Thought reclassified",
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error reclassifying thought:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  return router;
+}

@@ -1,0 +1,9 @@
+{
+  "name": "open-brain-mcp-sidecar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open Brain MCP server with supergateway HTTP bridge",
+  "dependencies": {
+    "supergateway": "^3.4.3"
+  }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1e1b4b"/>
+  <g transform="translate(256,256)">
+    <!-- Brain outline -->
+    <path d="M-20,-108 C-75,-108 -118,-76 -118,-22 C-118,0 -108,22 -92,38 C-102,54 -108,76 -97,97 C-86,118 -60,130 -32,124 C-22,134 -5,140 10,134 C26,146 48,146 64,134 C80,140 102,130 108,108 C118,92 112,70 102,54 C118,38 124,10 112,-10 C102,-38 76,-60 48,-64 C38,-96 6,-112 -20,-108Z" fill="none" stroke="#a78bfa" stroke-width="8" stroke-linejoin="round"/>
+    <!-- Brain center line -->
+    <path d="M-5,-102 C-5,-54 -10,-28 -5,0 C0,32 -5,76 -5,124" fill="none" stroke="#a78bfa" stroke-width="6" stroke-linecap="round"/>
+    <!-- Left folds -->
+    <path d="M-5,-64 C-38,-60 -70,-44 -86,-16" fill="none" stroke="#a78bfa" stroke-width="5" stroke-linecap="round"/>
+    <path d="M-5,-22 C-32,-26 -64,-16 -92,10" fill="none" stroke="#a78bfa" stroke-width="5" stroke-linecap="round"/>
+    <path d="M-5,26 C-26,32 -60,48 -76,76" fill="none" stroke="#a78bfa" stroke-width="5" stroke-linecap="round"/>
+    <!-- Right folds -->
+    <path d="M-5,-64 C26,-60 64,-48 86,-22" fill="none" stroke="#a78bfa" stroke-width="5" stroke-linecap="round"/>
+    <path d="M-5,-22 C22,-16 60,-6 92,16" fill="none" stroke="#a78bfa" stroke-width="5" stroke-linecap="round"/>
+    <path d="M-5,26 C22,38 54,60 70,86" fill="none" stroke="#a78bfa" stroke-width="5" stroke-linecap="round"/>
+    <!-- Sparkle dots -->
+    <circle cx="-96" cy="-80" r="8" fill="#818cf8" opacity="0.7"/>
+    <circle cx="92" cy="-86" r="7" fill="#818cf8" opacity="0.6"/>
+    <circle cx="108" cy="32" r="5.5" fill="#818cf8" opacity="0.5"/>
+    <circle cx="-100" cy="50" r="6" fill="#818cf8" opacity="0.4"/>
+  </g>
+</svg>

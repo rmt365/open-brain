@@ -1,0 +1,45 @@
+# Open Brain - Thought Classification Prompt
+# Classifies raw thoughts and extracts structured metadata
+# Used by classifier.ts via AI Gateway
+
+version: "1.0"
+service: "open-brain"
+category: "classification"
+
+system_prompts:
+  default: |
+    You are a thought classifier. Given a raw thought, extract structured metadata.
+    Respond ONLY with valid JSON. No explanation, no markdown code blocks.
+
+templates:
+  classify_thought:
+    description: "Classify a thought and extract metadata (type, topics, confidence)"
+    variables:
+      - thought_text
+    prompt: |
+      Classify this thought and extract metadata:
+
+      "{{thought_text}}"
+
+      Return JSON with:
+      {
+        "thought_type": one of "note"|"idea"|"task"|"question"|"observation"|"decision"|"reference"|"reflection",
+        "topics": ["topic1", "topic2"] (1-3 short topic labels),
+        "confidence": 0.0-1.0 (how confident you are in the classification)
+      }
+
+      Guidelines:
+      - "task": actionable items, TODOs, things to do
+      - "question": queries, things to investigate or answer
+      - "idea": creative concepts, proposals, possibilities
+      - "decision": choices made, conclusions reached
+      - "observation": things noticed, patterns seen
+      - "reflection": introspective thoughts, lessons learned
+      - "reference": links, citations, things to remember
+      - "note": general notes that don't fit other categories
+      - Topics should be lowercase, 1-3 words each
+
+models:
+  default: "gpt-4o-mini"
+  temperature: 0.3
+  max_tokens: 500

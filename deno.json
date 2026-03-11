@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.ns", "deno.window"]
+  },
+  "tasks": {
+    "start": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-import src/main.ts",
+    "dev": "deno run --watch --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-import src/main.ts",
+    "check": "deno check src/main.ts",
+    "verify": "deno check src/main.ts && deno lint src/ && deno test --allow-all src/tests/"
+  },
+  "lint": {
+    "exclude": ["src/ui/static/"],
+    "rules": {
+      "exclude": ["no-explicit-any", "no-unused-vars", "require-await", "no-window", "no-window-prefix"]
+    }
+  },
+  "imports": {
+    "@std/path": "jsr:@std/path@^1.0.8",
+    "@std/uuid": "jsr:@std/uuid@^1.0.4",
+    "@db/sqlite": "jsr:@db/sqlite@^0.12.0",
+    "@hono/hono": "jsr:@hono/hono@^4.10.4",
+    "@hono/zod-validator": "jsr:@hono/zod-validator@^0.7.5",
+    "@p2b/db-core": "./packages/db-core/src/index.ts",
+    "@p2b/db-backup": "./packages/db-backup/src/index.ts",
+    "@p2b/hono-core": "./packages/hono-core/src/index.ts",
+    "zod": "npm:zod@^3.23.8",
+    "sqlite3": "jsr:@db/sqlite@0.12",
+    "std/path": "jsr:@std/path@^1.0.8",
+    "std/fs": "jsr:@std/fs@^1.0.5",
+    "std/crypto": "jsr:@std/crypto@^1.0.3",
+    "std/streams": "jsr:@std/streams@^1.0.8",
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@^0.39.0",
+    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@^3.964.0",
+    "@aws-sdk/lib-storage": "npm:@aws-sdk/lib-storage@^3.964.0"
+  }
+}

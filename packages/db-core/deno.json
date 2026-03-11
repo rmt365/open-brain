@@ -1,0 +1,18 @@
+{
+  "name": "@p2b/db-core",
+  "version": "1.0.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./migrations": "./src/migrations.ts",
+    "./database-manager": "./src/databaseManager.ts"
+  },
+  "imports": {
+    "std/fs": "jsr:@std/fs@^1.0.5",
+    "std/path": "jsr:@std/path@^1.0.8",
+    "sqlite3": "jsr:@db/sqlite@0.12"
+  },
+  "tasks": {
+    "test": "deno test --allow-all"
+  }
+}

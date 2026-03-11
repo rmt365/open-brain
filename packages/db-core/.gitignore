@@ -1,0 +1,22 @@
+# Deno
+.deno/
+deno.lock
+
+# Example database files
+*.db
+*.db-shm
+*.db-wal
+examples/*.db
+examples/*.db-*
+
+# Test files
+test_*.ts
+*_test.ts
+
+# Build outputs
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,38 @@
+# Database
+database/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+config/secrets.env
+
+# Node
+node_modules/
+mcp/dist/
+
+# Deno
+.deno/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.worktree.yml
+
+# IDE
+.vscode/
+.idea/
+
+# Deploy instance envs (contain secrets)
+deploy/instances/*.env
+!deploy/instances/.env.template
+
+# Ollama models (large)
+ollama/
+
+# Lock files from vendored packages (use root deno.lock)
+packages/*/deno.lock

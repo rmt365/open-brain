@@ -1,0 +1,12 @@
+# Litestream replication config for Open Brain instance
+# Mount as /etc/litestream.yml inside the container
+dbs:
+  - path: /app/database/open-brain.db
+    replicas:
+      - type: s3
+        endpoint: ${WASABI_ENDPOINT}
+        region: ${WASABI_REGION}
+        bucket: ${WASABI_BUCKET}
+        path: ${INSTANCE_NAME}/open-brain.db
+        access-key-id: ${WASABI_ACCESS_KEY_ID}
+        secret-access-key: ${WASABI_SECRET_ACCESS_KEY}

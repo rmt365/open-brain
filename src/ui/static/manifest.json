@@ -1,0 +1,21 @@
+{
+  "name": "Open Brain",
+  "short_name": "Brain",
+  "start_url": "/open-brain/ui/brain",
+  "scope": "/open-brain/",
+  "display": "standalone",
+  "background_color": "#0f0e1a",
+  "theme_color": "#1e1b4b",
+  "icons": [
+    {
+      "src": "/open-brain/ui/static/icons/brain-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/open-brain/ui/static/icons/brain-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

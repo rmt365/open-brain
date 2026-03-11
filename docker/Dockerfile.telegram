@@ -1,0 +1,6 @@
+FROM denoland/deno:latest
+WORKDIR /app
+COPY telegram/deno.json .
+COPY telegram/src ./src
+RUN deno cache --allow-import src/main.ts
+CMD ["deno", "run", "--allow-net", "--allow-import", "--allow-env", "--allow-read", "src/main.ts"]

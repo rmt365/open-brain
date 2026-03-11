@@ -1,0 +1,26 @@
+# Shared Ollama instance for all Open Brain instances
+# Start once: docker compose -f deploy/docker-compose.ollama.yml up -d
+
+services:
+  ob-ollama:
+    image: ollama/ollama:latest
+    container_name: ob-ollama
+    ports:
+      - "11434:11434"
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    volumes:
+      - /root/open-brain/ollama:/root/.ollama
+      - ./ollama-entrypoint.sh:/entrypoint.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ob-network
+    restart: unless-stopped
+
+networks:
+  ob-network:
+    name: ob-network
+    driver: bridge

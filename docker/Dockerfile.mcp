@@ -1,0 +1,25 @@
+FROM node:22-slim
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Open Brain MCP server source
+COPY mcp/ /app/open-brain-mcp/
+
+# Install and build the Open Brain MCP server
+RUN cd open-brain-mcp && npm install && npm run build
+
+# Install supergateway (stdio-to-HTTP bridge)
+COPY docker/mcp-supergateway.json package.json
+RUN npm install
+
+# Copy entrypoint
+COPY docker/mcp-entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+EXPOSE 3013
+
+CMD ["./entrypoint.sh"]
