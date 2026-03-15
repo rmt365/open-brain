@@ -12,6 +12,7 @@ import { createTopicRoutes } from "./routes/topics.ts";
 import { createUIRoutes } from "./ui/routes.ts";
 import { ThoughtManager } from "./logic/thoughts.ts";
 import { createAuthMiddleware } from "./middleware/auth.ts";
+import type { ExtensionRegistration } from "./extensions/types.ts";
 
 // ============================================================
 // OPEN BRAIN SERVER CLASS
@@ -80,6 +81,13 @@ export class OpenBrainServer {
 
     // UI routes (PWA chat interface)
     this.app.route("/ui", createUIRoutes(this.config.basePath));
+  }
+
+  public registerExtensions(registrations: ExtensionRegistration[]): void {
+    for (const ext of registrations) {
+      this.app.route(`/ext/${ext.metadata.id}`, ext.router);
+      console.log(`[server] Mounted extension: /ext/${ext.metadata.id}`);
+    }
   }
 
   public getApp() {

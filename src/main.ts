@@ -7,6 +7,8 @@ import { getOpenBrainDatabase, closeOpenBrainDatabase } from "./db/openBrainData
 import { readRawConfig } from "./config.ts";
 import type { ServiceConfig } from "./config.ts";
 import { createLLMProvider } from "./logic/llm/factory.ts";
+import { discoverExtensions } from "./extensions/loader.ts";
+import { runExtensionMigrations } from "./extensions/migrations.ts";
 
 // Read common environment variables
 const env = readServiceEnv({
@@ -52,9 +54,15 @@ await bootstrapService({
   service: "open-brain",
   version: "1.0.0",
   ...env,
-  createServer: () => {
+  createServer: async () => {
     const dbManager = getOpenBrainDatabase(env.dbPath);
     const server = new OpenBrainServer(dbManager, config);
+
+    // Discover and load extensions
+    const extensions = await discoverExtensions({ db: dbManager, config });
+    await runExtensionMigrations(dbManager.getRawDb(), extensions);
+    server.registerExtensions(extensions);
+
     return {
       getApp: () => server.getApp(),
       close: () => {

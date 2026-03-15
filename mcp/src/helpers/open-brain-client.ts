@@ -238,4 +238,89 @@ export async function getForgottenThoughts(
   return request<ApiResponse<Thought[]>>(`/thoughts/forgotten${qs ? `?${qs}` : ""}`);
 }
 
-export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse };
+// ============================================
+// Household extension
+// ============================================
+
+interface HouseholdItem {
+  id: string;
+  name: string;
+  category: string | null;
+  location: string | null;
+  details: Record<string, unknown>;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface HouseholdVendor {
+  id: string;
+  name: string;
+  service_type: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  notes: string | null;
+  rating: number | null;
+  last_used: string | null;
+  created_at: string;
+}
+
+export async function createHouseholdItem(data: {
+  name: string;
+  category?: string;
+  location?: string;
+  details?: Record<string, unknown>;
+  notes?: string;
+}): Promise<ApiResponse<HouseholdItem>> {
+  return request<ApiResponse<HouseholdItem>>("/ext/household/items", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function searchHouseholdItems(
+  query?: string,
+  category?: string,
+  location?: string,
+): Promise<ApiResponse<HouseholdItem[]>> {
+  const searchParams = new URLSearchParams();
+  if (query) searchParams.set("query", query);
+  if (category) searchParams.set("category", category);
+  if (location) searchParams.set("location", location);
+
+  const qs = searchParams.toString();
+  return request<ApiResponse<HouseholdItem[]>>(`/ext/household/items${qs ? `?${qs}` : ""}`);
+}
+
+export async function getHouseholdItem(id: string): Promise<ApiResponse<HouseholdItem>> {
+  return request<ApiResponse<HouseholdItem>>(`/ext/household/items/${id}`);
+}
+
+export async function createHouseholdVendor(data: {
+  name: string;
+  service_type?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  notes?: string;
+  rating?: number;
+  last_used?: string;
+}): Promise<ApiResponse<HouseholdVendor>> {
+  return request<ApiResponse<HouseholdVendor>>("/ext/household/vendors", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listHouseholdVendors(
+  serviceType?: string,
+): Promise<ApiResponse<HouseholdVendor[]>> {
+  const searchParams = new URLSearchParams();
+  if (serviceType) searchParams.set("service_type", serviceType);
+
+  const qs = searchParams.toString();
+  return request<ApiResponse<HouseholdVendor[]>>(`/ext/household/vendors${qs ? `?${qs}` : ""}`);
+}
+
+export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse, HouseholdItem, HouseholdVendor };

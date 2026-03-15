@@ -10,6 +10,13 @@ import ManageTopicsTool from "./manage-topics.js";
 import IngestUrlTool from "./ingest-url.js";
 import SurfaceForgottenTool from "./surface-forgotten.js";
 import GetTasteProfileTool from "./get-taste-profile.js";
+import {
+  AddHouseholdItemTool,
+  SearchHouseholdItemsTool,
+  GetHouseholdItemTool,
+  AddVendorTool,
+  ListVendorsTool,
+} from "./household-tools.js";
 
 const AllTools = [
   SearchBrainTool,
@@ -22,6 +29,11 @@ const AllTools = [
   IngestUrlTool,
   SurfaceForgottenTool,
   GetTasteProfileTool,
+  AddHouseholdItemTool,
+  SearchHouseholdItemsTool,
+  GetHouseholdItemTool,
+  AddVendorTool,
+  ListVendorsTool,
 ];
 
 export function ToolFactory(server: McpServer) {

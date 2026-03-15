@@ -59,6 +59,14 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   }
 
   // ============================================
+  // Raw DB access (for extensions)
+  // ============================================
+
+  getRawDb() {
+    return this.db;
+  }
+
+  // ============================================
   // VSS (Vector Similarity Search)
   // ============================================
 
