@@ -47,6 +47,18 @@ const CaptureThoughtTool = CreateTool(
         parts.push(`Auto-topics: ${t.auto_topics.join(", ")}`);
       }
 
+      if (t.auto_people && t.auto_people.length > 0) {
+        parts.push(`People: ${t.auto_people.join(", ")}`);
+      }
+
+      if (t.auto_action_items && t.auto_action_items.length > 0) {
+        parts.push(`Action items: ${t.auto_action_items.join("; ")}`);
+      }
+
+      if (t.auto_sentiment) {
+        parts.push(`Sentiment: ${t.auto_sentiment}`);
+      }
+
       parts.push(`Date: ${date}`);
       parts.push(`ID: ${t.id}`);
 

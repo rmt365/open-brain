@@ -29,6 +29,10 @@ interface Thought {
   auto_type: string | null;
   auto_topics: string[] | null;
   confidence: number | null;
+  auto_people: string[] | null;
+  auto_action_items: string[] | null;
+  auto_dates_mentioned: string[] | null;
+  auto_sentiment: string | null;
   embedding_model: string | null;
   has_embedding: boolean;
   status: string;
@@ -140,6 +144,16 @@ export async function getTopics(
 
   const qs = searchParams.toString();
   return request<ApiResponse<TopicEntry[]>>(`/topics${qs ? `?${qs}` : ""}`);
+}
+
+export async function getPreferencesBlock(
+  domain?: string,
+): Promise<ApiResponse<{ block: string }>> {
+  const searchParams = new URLSearchParams();
+  if (domain) searchParams.set("domain", domain);
+
+  const qs = searchParams.toString();
+  return request<ApiResponse<{ block: string }>>(`/preferences/block${qs ? `?${qs}` : ""}`);
 }
 
 export type { Thought, SearchResult, BrainStats, TopicEntry, ApiResponse, ListResponse };

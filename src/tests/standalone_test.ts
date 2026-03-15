@@ -86,6 +86,10 @@ Deno.test({
     thought_type: "idea",
     topics: ["testing"],
     confidence: 0.9,
+    people: ["Alice"],
+    action_items: ["build test suite"],
+    dates_mentioned: ["next week"],
+    sentiment: "positive",
   });
   const provider = new MockLLMProvider(mockResponse);
   const result = await classifyThought("I should build a test suite", provider);
@@ -94,6 +98,10 @@ Deno.test({
   assertEquals(result.thought_type, "idea");
   assertEquals(result.topics, ["testing"]);
   assertEquals(result.confidence, 0.9);
+  assertEquals(result.people, ["Alice"]);
+  assertEquals(result.action_items, ["build test suite"]);
+  assertEquals(result.dates_mentioned, ["next week"]);
+  assertEquals(result.sentiment, "positive");
   },
 });
 
@@ -103,7 +111,7 @@ Deno.test({
   sanitizeOps: false,
   fn: async () => {
   const mockResponse =
-    '```json\n{"thought_type": "task", "topics": ["deployment", "docker"], "confidence": 0.85}\n```';
+    '```json\n{"thought_type": "task", "topics": ["deployment", "docker"], "confidence": 0.85, "people": [], "action_items": ["deploy container"], "dates_mentioned": [], "sentiment": "neutral"}\n```';
   const provider = new MockLLMProvider(mockResponse);
   const result = await classifyThought("Deploy the new container", provider);
 
@@ -111,6 +119,8 @@ Deno.test({
   assertEquals(result.thought_type, "task");
   assertEquals(result.topics, ["deployment", "docker"]);
   assertEquals(result.confidence, 0.85);
+  assertEquals(result.action_items, ["deploy container"]);
+  assertEquals(result.sentiment, "neutral");
   },
 });
 
@@ -204,7 +214,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
-  // No thought_type, no topics, no confidence
+  // No thought_type, no topics, no confidence, no new fields
   const mockResponse = JSON.stringify({});
   const provider = new MockLLMProvider(mockResponse);
   const result = await classifyThought("Empty classification", provider);
@@ -213,6 +223,29 @@ Deno.test({
   assertEquals(result.thought_type, "note"); // defaults to note
   assertEquals(result.topics, []); // defaults to empty
   assertEquals(result.confidence, 0.5); // defaults to 0.5
+  assertEquals(result.people, []); // defaults to empty
+  assertEquals(result.action_items, []); // defaults to empty
+  assertEquals(result.dates_mentioned, []); // defaults to empty
+  assertEquals(result.sentiment, null); // defaults to null
+  },
+});
+
+Deno.test({
+  name: "classifier: normalizes invalid sentiment to null",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+  const mockResponse = JSON.stringify({
+    thought_type: "note",
+    topics: ["test"],
+    confidence: 0.8,
+    sentiment: "angry",
+  });
+  const provider = new MockLLMProvider(mockResponse);
+  const result = await classifyThought("Invalid sentiment", provider);
+
+  assertExists(result);
+  assertEquals(result.sentiment, null);
   },
 });
 
@@ -343,7 +376,7 @@ Deno.test("config: returns defaults when env vars not set", () => {
     assertEquals(config.anthropicApiKey, "");
     assertEquals(config.ollamaUrl, "http://ollama:11434");
     assertEquals(config.aiModel, "claude-haiku-4-5-20251001");
-    assertEquals(config.embeddingModel, "all-minilm");
+    assertEquals(config.embeddingModel, "mxbai-embed-large");
     assertEquals(config.basePath, "");
     assertEquals(config.apiKey, null);
   } finally {

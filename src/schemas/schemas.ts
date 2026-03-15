@@ -75,6 +75,33 @@ export const ListThoughtsSchema = z.object({
 });
 
 // ============================================================
+// PREFERENCE SCHEMAS
+// ============================================================
+
+export const ConstraintTypeSchema = z.enum([
+  "domain rule",
+  "quality standard",
+  "business logic",
+  "formatting",
+]);
+
+export const CreatePreferenceSchema = z.object({
+  preference_name: z.string().min(1, "Preference name is required"),
+  domain: z.string().min(1).default("general"),
+  reject: z.string().min(1, "Reject description is required"),
+  want: z.string().min(1, "Want description is required"),
+  constraint_type: ConstraintTypeSchema.default("quality standard"),
+});
+
+export const UpdatePreferenceSchema = z.object({
+  preference_name: z.string().min(1).optional(),
+  domain: z.string().min(1).optional(),
+  reject: z.string().min(1).optional(),
+  want: z.string().min(1).optional(),
+  constraint_type: ConstraintTypeSchema.optional(),
+});
+
+// ============================================================
 // TYPESCRIPT TYPE EXPORTS
 // ============================================================
 
@@ -82,3 +109,5 @@ export type CaptureThoughtInput = z.infer<typeof CaptureThoughtSchema>;
 export type UpdateThoughtInput = z.infer<typeof UpdateThoughtSchema>;
 export type SearchThoughtsInput = z.infer<typeof SearchThoughtsSchema>;
 export type ListThoughtsInput = z.infer<typeof ListThoughtsSchema>;
+export type CreatePreferenceInput = z.infer<typeof CreatePreferenceSchema>;
+export type UpdatePreferenceInput = z.infer<typeof UpdatePreferenceSchema>;

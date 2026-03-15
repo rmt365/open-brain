@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS thoughts (
   auto_type TEXT,
   auto_topics TEXT,                      -- JSON array
   confidence REAL,
-  embedding BLOB,                        -- 384-dim float32
-  embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+  embedding BLOB,                        -- float32 vector (dimension depends on model)
+  embedding_model TEXT DEFAULT 'mxbai-embed-large',
   _vss_rowid INTEGER,                    -- stable rowid for VSS
   status TEXT DEFAULT 'active',
   metadata TEXT,                         -- JSON

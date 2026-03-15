@@ -29,6 +29,18 @@ export type ThoughtStatus =
   | "archived"
   | "deleted";
 
+export type Sentiment =
+  | "positive"
+  | "negative"
+  | "neutral"
+  | "mixed";
+
+export type ConstraintType =
+  | "domain rule"
+  | "quality standard"
+  | "business logic"
+  | "formatting";
+
 // ============================================================
 // THOUGHT TYPES
 // ============================================================
@@ -49,6 +61,12 @@ export interface Thought {
   auto_topics: string[] | null;
   confidence: number | null;
 
+  // Extracted metadata (AI-assigned)
+  auto_people: string[] | null;
+  auto_action_items: string[] | null;
+  auto_dates_mentioned: string[] | null;
+  auto_sentiment: Sentiment | null;
+
   // Embedding
   embedding_model: string | null;
   has_embedding: boolean;
@@ -62,6 +80,21 @@ export interface Thought {
 
   // Metadata
   metadata: Record<string, unknown> | null;
+}
+
+// ============================================================
+// TASTE PREFERENCE TYPES
+// ============================================================
+
+export interface TastePreference {
+  id: string;
+  preference_name: string;
+  domain: string;
+  reject: string;
+  want: string;
+  constraint_type: ConstraintType;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================

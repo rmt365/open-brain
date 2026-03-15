@@ -55,7 +55,15 @@ const SearchBrainTool = CreateTool(
           month: "short", day: "numeric", year: "numeric",
         });
         const topic = t.topic ? ` [${t.topic}]` : "";
-        return `${i + 1}. [${t.thought_type}]${topic} (${similarity}% match, ${date})\n   ${t.text}\n   ID: ${t.id}`;
+        const extras = [];
+        if (t.auto_people && t.auto_people.length > 0) {
+          extras.push(`People: ${t.auto_people.join(", ")}`);
+        }
+        if (t.auto_action_items && t.auto_action_items.length > 0) {
+          extras.push(`Actions: ${t.auto_action_items.join("; ")}`);
+        }
+        const extrasStr = extras.length > 0 ? `\n   ${extras.join(" | ")}` : "";
+        return `${i + 1}. [${t.thought_type}]${topic} (${similarity}% match, ${date})\n   ${t.text}${extrasStr}\n   ID: ${t.id}`;
       });
 
       const summary = `Found ${results.length} thought${results.length !== 1 ? "s" : ""} matching "${query}":`;

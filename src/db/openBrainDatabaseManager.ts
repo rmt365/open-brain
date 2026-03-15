@@ -5,11 +5,15 @@ import type {
   ThoughtType,
   SourceChannel,
   ThoughtStatus,
+  Sentiment,
+  ConstraintType,
   BrainStats,
   CaptureThoughtRequest,
   UpdateThoughtRequest,
   ListThoughtsRequest,
+  TastePreference,
 } from "../types/index.ts";
+import type { ClassificationResult } from "../logic/classifier.ts";
 
 const VSS_EXTENSIONS = [
   { path: "/usr/local/lib/sqlite3/extensions/vector0", envVar: "SQLITE_VECTOR_PATH" },
@@ -56,7 +60,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   createVSSTable(): boolean {
     try {
       this.db.exec(
-        `CREATE VIRTUAL TABLE IF NOT EXISTS vss_thoughts USING vss0(embedding(384))`
+        `CREATE VIRTUAL TABLE IF NOT EXISTS vss_thoughts USING vss0(embedding(1024))`
       );
       console.log("[OpenBrainDB] VSS table vss_thoughts ready");
       return true;
@@ -362,17 +366,22 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   // CLASSIFICATION / EMBEDDING UPDATES
   // ============================================
 
-  updateClassification(
-    id: string,
-    autoType: ThoughtType,
-    autoTopics: string[],
-    confidence: number
-  ): boolean {
+  updateClassification(id: string, result: ClassificationResult): boolean {
     const count = this.db.prepare(`
       UPDATE thoughts
-      SET auto_type = ?, auto_topics = ?, confidence = ?
+      SET auto_type = ?, auto_topics = ?, confidence = ?,
+          auto_people = ?, auto_action_items = ?, auto_dates_mentioned = ?, auto_sentiment = ?
       WHERE id = ?
-    `).run(autoType, JSON.stringify(autoTopics), confidence, id);
+    `).run(
+      result.thought_type,
+      JSON.stringify(result.topics),
+      result.confidence,
+      JSON.stringify(result.people),
+      JSON.stringify(result.action_items),
+      JSON.stringify(result.dates_mentioned),
+      result.sentiment,
+      id
+    );
     return count > 0;
   }
 
@@ -380,7 +389,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   storeEmbedding(
     id: string,
     embedding: Float32Array,
-    model: string = "all-MiniLM-L6-v2"
+    model: string = "mxbai-embed-large"
   ): boolean {
     const embeddingBytes = new Uint8Array(embedding.buffer);
 
@@ -498,12 +507,153 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       auto_type: (row.auto_type as ThoughtType) || null,
       auto_topics: row.auto_topics ? JSON.parse(row.auto_topics as string) : null,
       confidence: row.confidence as number | null,
+      auto_people: row.auto_people ? JSON.parse(row.auto_people as string) : null,
+      auto_action_items: row.auto_action_items ? JSON.parse(row.auto_action_items as string) : null,
+      auto_dates_mentioned: row.auto_dates_mentioned ? JSON.parse(row.auto_dates_mentioned as string) : null,
+      auto_sentiment: (row.auto_sentiment as Sentiment) || null,
       embedding_model: (row.embedding_model as string) || null,
       has_embedding: row.embedding !== null && row.embedding !== undefined,
       status: (row.status || "active") as ThoughtStatus,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
+    };
+  }
+
+  // ============================================
+  // TASTE PREFERENCES
+  // ============================================
+
+  createPreference(data: {
+    preference_name: string;
+    domain?: string;
+    reject: string;
+    want: string;
+    constraint_type?: ConstraintType;
+  }): TastePreference {
+    const id = crypto.randomUUID();
+    this.db.prepare(`
+      INSERT INTO taste_preferences (id, preference_name, domain, reject, want, constraint_type)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      data.preference_name,
+      data.domain || "general",
+      data.reject,
+      data.want,
+      data.constraint_type || "quality standard"
+    );
+    return this.getPreference(id)!;
+  }
+
+  getPreference(id: string): TastePreference | null {
+    const row = this.db.prepare(
+      "SELECT * FROM taste_preferences WHERE id = ?"
+    ).get(id) as Record<string, unknown> | undefined;
+    return row ? this.parsePreferenceRow(row) : null;
+  }
+
+  listPreferences(domain?: string, constraintType?: ConstraintType): TastePreference[] {
+    let query = "SELECT * FROM taste_preferences WHERE 1=1";
+    const params: string[] = [];
+
+    if (domain) {
+      query += " AND domain = ?";
+      params.push(domain);
+    }
+    if (constraintType) {
+      query += " AND constraint_type = ?";
+      params.push(constraintType);
+    }
+
+    query += " ORDER BY domain, constraint_type, preference_name";
+
+    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parsePreferenceRow(row));
+  }
+
+  updatePreference(id: string, data: {
+    preference_name?: string;
+    domain?: string;
+    reject?: string;
+    want?: string;
+    constraint_type?: ConstraintType;
+  }): TastePreference | null {
+    const existing = this.getPreference(id);
+    if (!existing) return null;
+
+    const updates: string[] = [];
+    const params: string[] = [];
+
+    if (data.preference_name !== undefined) {
+      updates.push("preference_name = ?");
+      params.push(data.preference_name);
+    }
+    if (data.domain !== undefined) {
+      updates.push("domain = ?");
+      params.push(data.domain);
+    }
+    if (data.reject !== undefined) {
+      updates.push("reject = ?");
+      params.push(data.reject);
+    }
+    if (data.want !== undefined) {
+      updates.push("want = ?");
+      params.push(data.want);
+    }
+    if (data.constraint_type !== undefined) {
+      updates.push("constraint_type = ?");
+      params.push(data.constraint_type);
+    }
+
+    if (updates.length === 0) return existing;
+
+    params.push(id);
+    this.db.prepare(
+      `UPDATE taste_preferences SET ${updates.join(", ")} WHERE id = ?`
+    ).run(...params);
+
+    return this.getPreference(id);
+  }
+
+  deletePreference(id: string): boolean {
+    const count = this.db.prepare(
+      "DELETE FROM taste_preferences WHERE id = ?"
+    ).run(id);
+    return count > 0;
+  }
+
+  assemblePreferencesBlock(domain?: string): string {
+    let query = "SELECT * FROM taste_preferences";
+    const params: string[] = [];
+
+    if (domain) {
+      query += " WHERE domain = ?";
+      params.push(domain);
+    }
+
+    query += " ORDER BY domain, constraint_type, preference_name";
+
+    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+    const prefs = rows.map((row) => this.parsePreferenceRow(row));
+
+    if (prefs.length === 0) return "";
+
+    return prefs.map((p) =>
+      `**${p.preference_name}**\nReject: ${p.reject}\nWant: ${p.want}`
+    ).join("\n\n");
+  }
+
+  private parsePreferenceRow(row: Record<string, unknown>): TastePreference {
+    return {
+      id: row.id as string,
+      preference_name: row.preference_name as string,
+      domain: row.domain as string,
+      reject: row.reject as string,
+      want: row.want as string,
+      constraint_type: row.constraint_type as ConstraintType,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
     };
   }
 }

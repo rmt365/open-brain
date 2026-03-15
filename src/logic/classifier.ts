@@ -3,7 +3,7 @@
 
 import { PromptLoader } from "@p2b/hono-core";
 import { join, dirname, fromFileUrl } from "@std/path";
-import type { ThoughtType } from "../types/index.ts";
+import type { ThoughtType, Sentiment } from "../types/index.ts";
 import type { LLMProvider } from "./llm/types.ts";
 
 // ============================================================
@@ -14,11 +14,19 @@ export interface ClassificationResult {
   thought_type: ThoughtType;
   topics: string[];
   confidence: number;
+  people: string[];
+  action_items: string[];
+  dates_mentioned: string[];
+  sentiment: Sentiment | null;
 }
 
 const VALID_THOUGHT_TYPES: Set<string> = new Set([
   "note", "idea", "task", "question",
   "observation", "decision", "reference", "reflection",
+]);
+
+const VALID_SENTIMENTS: Set<string> = new Set([
+  "positive", "negative", "neutral", "mixed",
 ]);
 
 // ============================================================
@@ -140,13 +148,32 @@ function normalizeClassification(
     ? thoughtType as ThoughtType
     : "note" as ThoughtType;
 
+  // Parse new metadata fields
+  const people = Array.isArray(raw.people)
+    ? raw.people.map(String).filter(Boolean)
+    : [];
+  const action_items = Array.isArray(raw.action_items)
+    ? raw.action_items.map(String).filter(Boolean)
+    : [];
+  const dates_mentioned = Array.isArray(raw.dates_mentioned)
+    ? raw.dates_mentioned.map(String).filter(Boolean)
+    : [];
+  const rawSentiment = String(raw.sentiment || "");
+  const sentiment = VALID_SENTIMENTS.has(rawSentiment)
+    ? rawSentiment as Sentiment
+    : null;
+
   console.log(
-    `[OpenBrain:Classify] Result: type=${validType}, topics=[${topics.join(", ")}], confidence=${confidence}`
+    `[OpenBrain:Classify] Result: type=${validType}, topics=[${topics.join(", ")}], confidence=${confidence}, people=[${people.join(", ")}], sentiment=${sentiment}`
   );
 
   return {
     thought_type: validType,
     topics,
     confidence,
+    people,
+    action_items,
+    dates_mentioned,
+    sentiment,
   };
 }

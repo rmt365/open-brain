@@ -19,6 +19,10 @@ class OpenBrainChat extends LitElement {
     user: { type: String, state: true },
     _showSettings: { type: Boolean, state: true },
     _needsApiKey: { type: Boolean, state: true },
+    _showPreferences: { type: Boolean, state: true },
+    _preferences: { type: Array, state: true },
+    _prefLoading: { type: Boolean, state: true },
+    _prefEditing: { type: String, state: true },
   };
 
   static styles = css`
@@ -414,6 +418,291 @@ class OpenBrainChat extends LitElement {
     .api-key-dialog .btn-danger:hover {
       background: rgba(239, 68, 68, 0.3);
     }
+
+    /* Settings menu */
+    .settings-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      background: #1e1b4b;
+      border: 1px solid rgba(129, 140, 248, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 50;
+      min-width: 160px;
+    }
+
+    .settings-menu button {
+      display: block;
+      width: 100%;
+      padding: 10px 16px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .settings-menu button:hover {
+      background: rgba(129, 140, 248, 0.1);
+      color: var(--text-primary);
+    }
+
+    /* Preferences panel */
+    .pref-overlay {
+      position: fixed;
+      inset: 0;
+      background: #0f0e1a;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .pref-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      background: var(--header-bg);
+      border-bottom: 1px solid rgba(129, 140, 248, 0.15);
+      flex-shrink: 0;
+      padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    }
+
+    .pref-header h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .pref-back-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+
+    .pref-back-btn:hover {
+      background: rgba(129, 140, 248, 0.1);
+    }
+
+    .pref-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .pref-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .pref-add-btn, .pref-copy-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .pref-add-btn {
+      background: var(--user-bubble);
+      color: white;
+    }
+
+    .pref-add-btn:hover {
+      background: #4f46e5;
+    }
+
+    .pref-copy-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-secondary);
+    }
+
+    .pref-copy-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .pref-domain-group {
+      margin-bottom: 20px;
+    }
+
+    .pref-domain-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .pref-card {
+      background: var(--system-bubble);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 8px;
+      transition: background 0.15s;
+    }
+
+    .pref-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .pref-card-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .pref-card-badge {
+      display: inline-block;
+      background: rgba(129, 140, 248, 0.15);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .pref-card-field {
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+
+    .pref-card-field strong {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .pref-card-field span {
+      color: var(--text-secondary);
+    }
+
+    .pref-card-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .pref-card-actions button {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .pref-edit-btn {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    .pref-edit-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text-secondary);
+    }
+
+    .pref-delete-btn {
+      background: rgba(239, 68, 68, 0.1);
+      color: #fca5a5;
+    }
+
+    .pref-delete-btn:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    /* Preference form */
+    .pref-form {
+      background: var(--system-bubble);
+      border: 1px solid rgba(129, 140, 248, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .pref-form label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      margin-top: 10px;
+    }
+
+    .pref-form label:first-child {
+      margin-top: 0;
+    }
+
+    .pref-form input,
+    .pref-form textarea,
+    .pref-form select {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .pref-form textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .pref-form select {
+      cursor: pointer;
+    }
+
+    .pref-form input:focus,
+    .pref-form textarea:focus,
+    .pref-form select:focus {
+      border-color: var(--accent);
+    }
+
+    .pref-form .btn-row {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    .pref-form button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .pref-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
   `;
 
   constructor() {
@@ -425,6 +714,12 @@ class OpenBrainChat extends LitElement {
     this.user = '';
     this._offlineQueue = [];
     this._showApiKeyDialog = false;
+    this._showPreferences = false;
+    this._preferences = [];
+    this._prefLoading = false;
+    this._prefEditing = null;
+    this._showSettingsMenu = false;
+    this._prefFormData = null;
   }
 
   connectedCallback() {
@@ -769,6 +1064,227 @@ class OpenBrainChat extends LitElement {
     this._showApiKeyDialog = false;
   }
 
+  // ============================================================
+  // PREFERENCES METHODS
+  // ============================================================
+
+  async _loadPreferences() {
+    this._prefLoading = true;
+    try {
+      const resp = await fetch(`${BASE_PATH}/preferences`, {
+        headers: this._getHeaders(),
+      });
+      if (resp.ok) {
+        const result = await resp.json();
+        if (result.success) {
+          this._preferences = result.data || [];
+        }
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      this._prefLoading = false;
+    }
+  }
+
+  _openPreferences() {
+    this._showSettingsMenu = false;
+    this._showPreferences = true;
+    this._prefFormData = null;
+    this._prefEditing = null;
+    this._loadPreferences();
+  }
+
+  _openAddPrefForm() {
+    this._prefEditing = null;
+    this._prefFormData = {
+      preference_name: '',
+      domain: 'general',
+      reject: '',
+      want: '',
+      constraint_type: 'quality standard',
+    };
+  }
+
+  _openEditPrefForm(pref) {
+    this._prefEditing = pref.id;
+    this._prefFormData = {
+      preference_name: pref.preference_name,
+      domain: pref.domain,
+      reject: pref.reject,
+      want: pref.want,
+      constraint_type: pref.constraint_type,
+    };
+  }
+
+  _cancelPrefForm() {
+    this._prefFormData = null;
+    this._prefEditing = null;
+  }
+
+  async _savePref() {
+    if (!this._prefFormData) return;
+    const data = this._prefFormData;
+    if (!data.preference_name || !data.reject || !data.want) return;
+
+    try {
+      if (this._prefEditing) {
+        await fetch(`${BASE_PATH}/preferences/${this._prefEditing}`, {
+          method: 'PUT',
+          headers: this._getHeaders(),
+          body: JSON.stringify(data),
+        });
+      } else {
+        await fetch(`${BASE_PATH}/preferences`, {
+          method: 'POST',
+          headers: this._getHeaders(),
+          body: JSON.stringify(data),
+        });
+      }
+      this._prefFormData = null;
+      this._prefEditing = null;
+      await this._loadPreferences();
+    } catch {
+      // Silent fail
+    }
+  }
+
+  async _deletePref(id) {
+    if (!confirm('Delete this preference?')) return;
+    try {
+      await fetch(`${BASE_PATH}/preferences/${id}`, {
+        method: 'DELETE',
+        headers: this._getHeaders(),
+      });
+      await this._loadPreferences();
+    } catch {
+      // Silent fail
+    }
+  }
+
+  async _copyPrefBlock() {
+    try {
+      const resp = await fetch(`${BASE_PATH}/preferences/block`, {
+        headers: this._getHeaders(),
+      });
+      if (resp.ok) {
+        const result = await resp.json();
+        if (result.success && result.data.block) {
+          await navigator.clipboard.writeText(result.data.block);
+          // Brief visual feedback
+          const btn = this.renderRoot.querySelector('.pref-copy-btn');
+          if (btn) {
+            const original = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = original; }, 1500);
+          }
+        }
+      }
+    } catch {
+      // Silent fail
+    }
+  }
+
+  _renderPreferencesPanel() {
+    // Group preferences by domain
+    const grouped = {};
+    for (const p of this._preferences) {
+      if (!grouped[p.domain]) grouped[p.domain] = [];
+      grouped[p.domain].push(p);
+    }
+    const domains = Object.keys(grouped).sort();
+
+    return html`
+      <div class="pref-overlay">
+        <div class="pref-header">
+          <h2>Taste Preferences</h2>
+          <button class="pref-back-btn" @click=${() => { this._showPreferences = false; }}>Done</button>
+        </div>
+        <div class="pref-body">
+          <div class="pref-actions">
+            <button class="pref-add-btn" @click=${this._openAddPrefForm}>+ Add Preference</button>
+            ${this._preferences.length > 0 ? html`
+              <button class="pref-copy-btn" @click=${this._copyPrefBlock}>Copy Block</button>
+            ` : ''}
+          </div>
+
+          ${this._prefFormData && !this._prefEditing ? this._renderPrefForm() : ''}
+
+          ${this._prefLoading ? html`
+            <div class="pref-empty">Loading...</div>
+          ` : domains.length === 0 && !this._prefFormData ? html`
+            <div class="pref-empty">
+              No preferences yet. Add your first one to start building your taste profile.
+            </div>
+          ` : domains.map((domain) => html`
+            <div class="pref-domain-group">
+              <div class="pref-domain-label">${domain}</div>
+              ${grouped[domain].map((p) =>
+                this._prefEditing === p.id ? this._renderPrefForm() : html`
+                  <div class="pref-card">
+                    <div class="pref-card-header">
+                      <span class="pref-card-name">${p.preference_name}</span>
+                      <span class="pref-card-badge">${p.constraint_type}</span>
+                    </div>
+                    <div class="pref-card-field">
+                      <strong>Reject: </strong><span>${p.reject}</span>
+                    </div>
+                    <div class="pref-card-field">
+                      <strong>Want: </strong><span>${p.want}</span>
+                    </div>
+                    <div class="pref-card-actions">
+                      <button class="pref-edit-btn" @click=${() => this._openEditPrefForm(p)}>Edit</button>
+                      <button class="pref-delete-btn" @click=${() => this._deletePref(p.id)}>Delete</button>
+                    </div>
+                  </div>
+                `
+              )}
+            </div>
+          `)}
+        </div>
+      </div>
+    `;
+  }
+
+  _renderPrefForm() {
+    const d = this._prefFormData;
+    return html`
+      <div class="pref-form">
+        <label>Preference Name</label>
+        <input type="text" .value=${d.preference_name}
+          @input=${(e) => { this._prefFormData = { ...d, preference_name: e.target.value }; }} />
+
+        <label>Domain</label>
+        <input type="text" .value=${d.domain}
+          @input=${(e) => { this._prefFormData = { ...d, domain: e.target.value }; }} />
+
+        <label>Reject</label>
+        <textarea .value=${d.reject}
+          @input=${(e) => { this._prefFormData = { ...d, reject: e.target.value }; }}></textarea>
+
+        <label>Want</label>
+        <textarea .value=${d.want}
+          @input=${(e) => { this._prefFormData = { ...d, want: e.target.value }; }}></textarea>
+
+        <label>Constraint Type</label>
+        <select .value=${d.constraint_type}
+          @change=${(e) => { this._prefFormData = { ...d, constraint_type: e.target.value }; }}>
+          <option value="quality standard">Quality Standard</option>
+          <option value="domain rule">Domain Rule</option>
+          <option value="business logic">Business Logic</option>
+          <option value="formatting">Formatting</option>
+        </select>
+
+        <div class="btn-row">
+          <button class="btn-secondary" @click=${this._cancelPrefForm}>Cancel</button>
+          <button class="btn-primary" @click=${this._savePref}>
+            ${this._prefEditing ? 'Update' : 'Add'}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   _renderMessage(msg) {
     if (msg.type === 'user') {
       return html`
@@ -850,9 +1366,17 @@ class OpenBrainChat extends LitElement {
             <div class="status-dot ${this.online ? '' : 'offline'}"></div>
             ${this.online ? 'Online' : 'Offline'}
           </div>
-          <button class="settings-btn" @click=${() => { this._showApiKeyDialog = true; }} title="Settings">
-            &#9881;
-          </button>
+          <div style="position: relative;">
+            <button class="settings-btn" @click=${() => { this._showSettingsMenu = !this._showSettingsMenu; }} title="Settings">
+              &#9881;
+            </button>
+            ${this._showSettingsMenu ? html`
+              <div class="settings-menu">
+                <button @click=${() => { this._showSettingsMenu = false; this._showApiKeyDialog = true; }}>API Key</button>
+                <button @click=${this._openPreferences}>Preferences</button>
+              </div>
+            ` : ''}
+          </div>
         </div>
       </div>
 
@@ -906,6 +1430,7 @@ class OpenBrainChat extends LitElement {
       </div>
 
       ${this._showApiKeyDialog ? this._renderApiKeyDialog() : ''}
+      ${this._showPreferences ? this._renderPreferencesPanel() : ''}
     `;
   }
 }
