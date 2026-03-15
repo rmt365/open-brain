@@ -1,9 +1,9 @@
 // Open Brain - Embedding Client
-// Uses Ollama /api/embed endpoint for generating 384-dim embeddings
+// Uses Ollama /api/embed endpoint for generating vector embeddings
 
 /**
- * Generate a 384-dimensional embedding vector for a text string.
- * Calls Ollama's /api/embed endpoint (all-minilm model, 384 dimensions).
+ * Generate an embedding vector for a text string.
+ * Calls Ollama's /api/embed endpoint (default: mxbai-embed-large, 1024 dimensions).
  *
  * Returns null on error for graceful degradation -- thoughts are still
  * captured even if the embedding service is unavailable.
@@ -11,7 +11,7 @@
 export async function generateEmbedding(
   text: string,
   ollamaUrl: string,
-  model: string = "all-minilm"
+  model: string = "mxbai-embed-large"
 ): Promise<Float32Array | null> {
   try {
     const url = `${ollamaUrl}/api/embed`;

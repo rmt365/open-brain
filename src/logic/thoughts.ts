@@ -83,7 +83,7 @@ export class ThoughtManager {
 
     if (classResult.status === "fulfilled" && classResult.value) {
       const c = classResult.value;
-      this.db.updateClassification(thought.id, c.thought_type, c.topics, c.confidence);
+      this.db.updateClassification(thought.id, c);
       console.log(`[OpenBrain:Capture] Classified thought ${thought.id} as ${c.thought_type}`);
     } else {
       console.warn(`[OpenBrain:Capture] Classification skipped for ${thought.id}`);
@@ -235,12 +235,7 @@ export class ThoughtManager {
     );
 
     if (classification) {
-      this.db.updateClassification(
-        id,
-        classification.thought_type,
-        classification.topics,
-        classification.confidence
-      );
+      this.db.updateClassification(id, classification);
       console.log(`[OpenBrain:Reclassify] ${id} -> ${classification.thought_type}`);
     }
 
@@ -293,12 +288,7 @@ export class ThoughtManager {
         this.config.llm.model
       );
       if (classification) {
-        this.db.updateClassification(
-          thought.id,
-          classification.thought_type,
-          classification.topics,
-          classification.confidence
-        );
+        this.db.updateClassification(thought.id, classification);
         return true;
       }
       return false;

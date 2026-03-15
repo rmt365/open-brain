@@ -13,7 +13,7 @@ system_prompts:
 
 templates:
   classify_thought:
-    description: "Classify a thought and extract metadata (type, topics, confidence)"
+    description: "Classify a thought and extract metadata (type, topics, people, actions, dates, sentiment)"
     variables:
       - thought_text
     prompt: |
@@ -25,7 +25,11 @@ templates:
       {
         "thought_type": one of "note"|"idea"|"task"|"question"|"observation"|"decision"|"reference"|"reflection",
         "topics": ["topic1", "topic2"] (1-3 short topic labels),
-        "confidence": 0.0-1.0 (how confident you are in the classification)
+        "confidence": 0.0-1.0 (how confident you are in the classification),
+        "people": ["person1", "person2"] (names of people mentioned),
+        "action_items": ["action1", "action2"] (actionable tasks extracted from the text),
+        "dates_mentioned": ["date1", "date2"] (any dates or time references),
+        "sentiment": one of "positive"|"negative"|"neutral"|"mixed"
       }
 
       Guidelines:
@@ -38,6 +42,10 @@ templates:
       - "reference": links, citations, things to remember
       - "note": general notes that don't fit other categories
       - Topics should be lowercase, 1-3 words each
+      - People: extract names of people mentioned; empty array if none
+      - Action items: extract concrete tasks or next steps; empty array if none
+      - Dates mentioned: extract any dates, deadlines, or time references (e.g., "next Monday", "March 20", "end of Q2"); empty array if none
+      - Sentiment: the overall emotional tone of the thought
 
 models:
   default: "gpt-4o-mini"
