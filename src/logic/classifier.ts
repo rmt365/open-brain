@@ -3,7 +3,7 @@
 
 import { PromptLoader } from "@p2b/hono-core";
 import { join, dirname, fromFileUrl } from "@std/path";
-import type { ThoughtType, Sentiment } from "../types/index.ts";
+import type { ThoughtType, Sentiment, LifeArea } from "../types/index.ts";
 import type { LLMProvider } from "./llm/types.ts";
 
 // ============================================================
@@ -12,7 +12,9 @@ import type { LLMProvider } from "./llm/types.ts";
 
 export interface ClassificationResult {
   thought_type: ThoughtType;
+  life_area: LifeArea | null;
   topics: string[];
+  suggested_topics: string[];
   confidence: number;
   people: string[];
   action_items: string[];
@@ -23,6 +25,11 @@ export interface ClassificationResult {
 const VALID_THOUGHT_TYPES: Set<string> = new Set([
   "note", "idea", "task", "question",
   "observation", "decision", "reference", "reflection",
+]);
+
+const VALID_LIFE_AREAS: Set<string> = new Set([
+  "craft", "business", "systems", "health",
+  "marriage", "relationships", "creative", "wild", "meta",
 ]);
 
 const VALID_SENTIMENTS: Set<string> = new Set([
@@ -52,20 +59,28 @@ function getPromptLoader(): PromptLoader {
 
 /**
  * Classify a thought using an LLM provider.
- * Extracts thought_type, topics, and confidence from the text.
+ * Extracts thought_type, life_area, topics, and confidence from the text.
  *
  * Returns null on error for graceful degradation -- thoughts are still
  * captured even if the LLM is unavailable.
+ *
+ * @param managedTopics - list of active managed topic names to include in the prompt
  */
 export async function classifyThought(
   text: string,
   provider: LLMProvider,
-  model?: string
+  model?: string,
+  managedTopics?: string[]
 ): Promise<ClassificationResult | null> {
   try {
     const loader = getPromptLoader();
+    const topicList = managedTopics && managedTopics.length > 0
+      ? managedTopics.join(", ")
+      : "(no managed topics yet — suggest appropriate topics)";
+
     const { system, user } = loader.getPrompt("classify_thought", {
       thought_text: text,
+      managed_topics: topicList,
     });
 
     console.log(`[OpenBrain:Classify] Classifying thought (${text.length} chars)`);
@@ -139,6 +154,9 @@ function normalizeClassification(
   const topics = Array.isArray(raw.topics)
     ? raw.topics.map(String).filter(Boolean).slice(0, 5)
     : [];
+  const suggestedTopics = Array.isArray(raw.suggested_topics)
+    ? raw.suggested_topics.map(String).filter(Boolean).slice(0, 3)
+    : [];
   const confidence = typeof raw.confidence === "number"
     ? Math.max(0, Math.min(1, raw.confidence))
     : 0.5;
@@ -147,6 +165,12 @@ function normalizeClassification(
   const validType = VALID_THOUGHT_TYPES.has(thoughtType)
     ? thoughtType as ThoughtType
     : "note" as ThoughtType;
+
+  // Validate life_area
+  const rawLifeArea = String(raw.life_area || "");
+  const lifeArea = VALID_LIFE_AREAS.has(rawLifeArea)
+    ? rawLifeArea as LifeArea
+    : null;
 
   // Parse new metadata fields
   const people = Array.isArray(raw.people)
@@ -164,12 +188,14 @@ function normalizeClassification(
     : null;
 
   console.log(
-    `[OpenBrain:Classify] Result: type=${validType}, topics=[${topics.join(", ")}], confidence=${confidence}, people=[${people.join(", ")}], sentiment=${sentiment}`
+    `[OpenBrain:Classify] Result: type=${validType}, area=${lifeArea}, topics=[${topics.join(", ")}], confidence=${confidence}, people=[${people.join(", ")}], sentiment=${sentiment}${suggestedTopics.length > 0 ? `, suggested=[${suggestedTopics.join(", ")}]` : ""}`
   );
 
   return {
     thought_type: validType,
+    life_area: lifeArea,
     topics,
+    suggested_topics: suggestedTopics,
     confidence,
     people,
     action_items,

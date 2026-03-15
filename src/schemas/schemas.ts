@@ -34,6 +34,18 @@ export const ThoughtStatusSchema = z.enum([
   "deleted",
 ]);
 
+export const LifeAreaSchema = z.enum([
+  "craft",
+  "business",
+  "systems",
+  "health",
+  "marriage",
+  "relationships",
+  "creative",
+  "wild",
+  "meta",
+]);
+
 // ============================================================
 // THOUGHT SCHEMAS
 // ============================================================
@@ -42,6 +54,7 @@ export const CaptureThoughtSchema = z.object({
   text: z.string().min(1, "Thought text is required"),
   thought_type: ThoughtTypeSchema.optional(),
   topic: z.string().min(1).optional(),
+  life_area: LifeAreaSchema.optional(),
   source_channel: SourceChannelSchema.optional(),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -50,6 +63,7 @@ export const UpdateThoughtSchema = z.object({
   text: z.string().min(1).optional(),
   thought_type: ThoughtTypeSchema.optional(),
   topic: z.string().min(1).optional(),
+  life_area: LifeAreaSchema.optional(),
   status: ThoughtStatusSchema.optional(),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -102,6 +116,15 @@ export const UpdatePreferenceSchema = z.object({
 });
 
 // ============================================================
+// TOPIC MANAGEMENT SCHEMAS
+// ============================================================
+
+export const CreateManagedTopicSchema = z.object({
+  name: z.string().min(1, "Topic name is required").transform(s => s.toLowerCase().trim()),
+  life_area: LifeAreaSchema.optional(),
+});
+
+// ============================================================
 // TYPESCRIPT TYPE EXPORTS
 // ============================================================
 
@@ -111,3 +134,4 @@ export type SearchThoughtsInput = z.infer<typeof SearchThoughtsSchema>;
 export type ListThoughtsInput = z.infer<typeof ListThoughtsSchema>;
 export type CreatePreferenceInput = z.infer<typeof CreatePreferenceSchema>;
 export type UpdatePreferenceInput = z.infer<typeof UpdatePreferenceSchema>;
+export type CreateManagedTopicInput = z.infer<typeof CreateManagedTopicSchema>;

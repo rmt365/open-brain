@@ -35,6 +35,17 @@ export type Sentiment =
   | "neutral"
   | "mixed";
 
+export type LifeArea =
+  | "craft"
+  | "business"
+  | "systems"
+  | "health"
+  | "marriage"
+  | "relationships"
+  | "creative"
+  | "wild"
+  | "meta";
+
 export type ConstraintType =
   | "domain rule"
   | "quality standard"
@@ -60,6 +71,10 @@ export interface Thought {
   auto_type: ThoughtType | null;
   auto_topics: string[] | null;
   confidence: number | null;
+
+  // Life area
+  life_area: LifeArea | null;
+  auto_life_area: LifeArea | null;
 
   // Extracted metadata (AI-assigned)
   auto_people: string[] | null;
@@ -98,6 +113,28 @@ export interface TastePreference {
 }
 
 // ============================================================
+// TAXONOMY TYPES
+// ============================================================
+
+export type SuggestionStatus = "pending" | "approved" | "rejected";
+
+export interface ManagedTopic {
+  id: number;
+  name: string;
+  life_area: LifeArea | null;
+  created_at: string;
+  active: boolean;
+}
+
+export interface SuggestedTopic {
+  id: number;
+  name: string;
+  suggested_from_thought_id: string | null;
+  status: SuggestionStatus;
+  created_at: string;
+}
+
+// ============================================================
 // SEARCH TYPES
 // ============================================================
 
@@ -129,6 +166,7 @@ export interface CaptureThoughtRequest {
   text: string;
   thought_type?: ThoughtType;
   topic?: string;
+  life_area?: LifeArea;
   source_channel?: SourceChannel;
   metadata?: Record<string, unknown>;
 }
@@ -137,6 +175,7 @@ export interface UpdateThoughtRequest {
   text?: string;
   thought_type?: ThoughtType;
   topic?: string;
+  life_area?: LifeArea;
   status?: ThoughtStatus;
   metadata?: Record<string, unknown>;
 }
@@ -150,6 +189,7 @@ export interface SearchThoughtsRequest {
 export interface ListThoughtsRequest {
   thought_type?: ThoughtType;
   topic?: string;
+  life_area?: LifeArea;
   source_channel?: SourceChannel;
   since?: string;
   status?: ThoughtStatus;

@@ -6,12 +6,16 @@ import type {
   SourceChannel,
   ThoughtStatus,
   Sentiment,
+  LifeArea,
   ConstraintType,
   BrainStats,
   CaptureThoughtRequest,
   UpdateThoughtRequest,
   ListThoughtsRequest,
   TastePreference,
+  ManagedTopic,
+  SuggestedTopic,
+  SuggestionStatus,
 } from "../types/index.ts";
 import type { ClassificationResult } from "../logic/classifier.ts";
 
@@ -229,8 +233,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
 
     const stmt = this.db.prepare(`
       INSERT INTO thoughts (
-        id, text, thought_type, topic, source_channel, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        id, text, thought_type, topic, life_area, source_channel, metadata
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -238,6 +242,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       data.text,
       data.thought_type || "note",
       data.topic || null,
+      data.life_area || null,
       data.source_channel || "api",
       data.metadata ? JSON.stringify(data.metadata) : null
     );
@@ -283,6 +288,13 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       // Default to active thoughts only
       query += " AND status = 'active'";
       countQuery += " AND status = 'active'";
+    }
+
+    if (filters.life_area) {
+      query += " AND (life_area = ? OR auto_life_area = ?)";
+      countQuery += " AND (life_area = ? OR auto_life_area = ?)";
+      params.push(filters.life_area, filters.life_area);
+      countParams.push(filters.life_area, filters.life_area);
     }
 
     if (filters.topic) {
@@ -333,6 +345,10 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       updates.push("topic = ?");
       params.push(data.topic);
     }
+    if (data.life_area !== undefined) {
+      updates.push("life_area = ?");
+      params.push(data.life_area);
+    }
     if (data.status !== undefined) {
       updates.push("status = ?");
       params.push(data.status);
@@ -370,7 +386,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     const count = this.db.prepare(`
       UPDATE thoughts
       SET auto_type = ?, auto_topics = ?, confidence = ?,
-          auto_people = ?, auto_action_items = ?, auto_dates_mentioned = ?, auto_sentiment = ?
+          auto_people = ?, auto_action_items = ?, auto_dates_mentioned = ?, auto_sentiment = ?,
+          auto_life_area = ?
       WHERE id = ?
     `).run(
       result.thought_type,
@@ -380,6 +397,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       JSON.stringify(result.action_items),
       JSON.stringify(result.dates_mentioned),
       result.sentiment,
+      result.life_area || null,
       id
     );
     return count > 0;
@@ -503,6 +521,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       text: row.text as string,
       thought_type: (row.thought_type || "note") as ThoughtType,
       topic: (row.topic as string) || null,
+      life_area: (row.life_area as LifeArea) || null,
+      auto_life_area: (row.auto_life_area as LifeArea) || null,
       source_channel: (row.source_channel || "api") as SourceChannel,
       auto_type: (row.auto_type as ThoughtType) || null,
       auto_topics: row.auto_topics ? JSON.parse(row.auto_topics as string) : null,
@@ -518,6 +538,146 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       updated_at: row.updated_at as string,
       metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
     };
+  }
+
+  // ============================================
+  // MANAGED TOPICS
+  // ============================================
+
+  getManagedTopics(activeOnly: boolean = true): ManagedTopic[] {
+    const query = activeOnly
+      ? "SELECT * FROM managed_topics WHERE active = 1 ORDER BY name"
+      : "SELECT * FROM managed_topics ORDER BY name";
+    const rows = this.db.prepare(query).all() as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseManagedTopicRow(row));
+  }
+
+  getManagedTopicNames(): string[] {
+    const rows = this.db.prepare(
+      "SELECT name FROM managed_topics WHERE active = 1 ORDER BY name"
+    ).all() as Array<{ name: string }>;
+    return rows.map((r) => r.name);
+  }
+
+  addManagedTopic(name: string, lifeArea?: LifeArea): ManagedTopic {
+    this.db.prepare(
+      "INSERT INTO managed_topics (name, life_area) VALUES (?, ?)"
+    ).run(name.toLowerCase().trim(), lifeArea || null);
+
+    const row = this.db.prepare(
+      "SELECT * FROM managed_topics WHERE name = ?"
+    ).get(name.toLowerCase().trim()) as Record<string, unknown>;
+
+    return this.parseManagedTopicRow(row);
+  }
+
+  deactivateManagedTopic(id: number): boolean {
+    const count = this.db.prepare(
+      "UPDATE managed_topics SET active = 0 WHERE id = ?"
+    ).run(id);
+    return count > 0;
+  }
+
+  private parseManagedTopicRow(row: Record<string, unknown>): ManagedTopic {
+    return {
+      id: row.id as number,
+      name: row.name as string,
+      life_area: (row.life_area as LifeArea) || null,
+      created_at: row.created_at as string,
+      active: (row.active as number) === 1,
+    };
+  }
+
+  // ============================================
+  // SUGGESTED TOPICS
+  // ============================================
+
+  suggestTopic(name: string, thoughtId?: string): SuggestedTopic {
+    this.db.prepare(
+      "INSERT INTO suggested_topics (name, suggested_from_thought_id) VALUES (?, ?)"
+    ).run(name.toLowerCase().trim(), thoughtId || null);
+
+    const row = this.db.prepare(
+      "SELECT * FROM suggested_topics WHERE rowid = last_insert_rowid()"
+    ).get() as Record<string, unknown>;
+
+    return this.parseSuggestedTopicRow(row);
+  }
+
+  getPendingSuggestions(): SuggestedTopic[] {
+    const rows = this.db.prepare(
+      "SELECT * FROM suggested_topics WHERE status = 'pending' ORDER BY created_at DESC"
+    ).all() as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseSuggestedTopicRow(row));
+  }
+
+  approveSuggestion(id: number, lifeArea?: LifeArea): ManagedTopic | null {
+    const row = this.db.prepare(
+      "SELECT * FROM suggested_topics WHERE id = ? AND status = 'pending'"
+    ).get(id) as Record<string, unknown> | undefined;
+
+    if (!row) return null;
+
+    const name = (row.name as string).toLowerCase().trim();
+
+    // Check if topic already exists
+    const existing = this.db.prepare(
+      "SELECT * FROM managed_topics WHERE name = ?"
+    ).get(name) as Record<string, unknown> | undefined;
+
+    if (existing) {
+      // Just mark the suggestion as approved, reactivate if needed
+      this.db.prepare("UPDATE suggested_topics SET status = 'approved' WHERE id = ?").run(id);
+      this.db.prepare("UPDATE managed_topics SET active = 1 WHERE name = ?").run(name);
+      return this.parseManagedTopicRow(
+        this.db.prepare("SELECT * FROM managed_topics WHERE name = ?").get(name) as Record<string, unknown>
+      );
+    }
+
+    const transaction = this.db.transaction(() => {
+      this.db.prepare("UPDATE suggested_topics SET status = 'approved' WHERE id = ?").run(id);
+      this.db.prepare(
+        "INSERT INTO managed_topics (name, life_area) VALUES (?, ?)"
+      ).run(name, lifeArea || null);
+    });
+
+    transaction();
+
+    return this.parseManagedTopicRow(
+      this.db.prepare("SELECT * FROM managed_topics WHERE name = ?").get(name) as Record<string, unknown>
+    );
+  }
+
+  rejectSuggestion(id: number): boolean {
+    const count = this.db.prepare(
+      "UPDATE suggested_topics SET status = 'rejected' WHERE id = ? AND status = 'pending'"
+    ).run(id);
+    return count > 0;
+  }
+
+  private parseSuggestedTopicRow(row: Record<string, unknown>): SuggestedTopic {
+    return {
+      id: row.id as number,
+      name: row.name as string,
+      suggested_from_thought_id: (row.suggested_from_thought_id as string) || null,
+      status: row.status as SuggestionStatus,
+      created_at: row.created_at as string,
+    };
+  }
+
+  // ============================================
+  // BACKFILL: thoughts missing life area
+  // ============================================
+
+  getThoughtsMissingLifeArea(limit: number = 50): Thought[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM thoughts
+      WHERE auto_life_area IS NULL AND status = 'active'
+      ORDER BY created_at ASC
+      LIMIT ?
+    `).all(limit) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => this.parseThoughtRow(row));
   }
 
   // ============================================

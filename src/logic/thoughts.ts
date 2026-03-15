@@ -3,6 +3,7 @@ import type { ServiceConfig } from "../config.ts";
 import type {
   Thought,
   ThoughtType,
+  LifeArea,
   SourceChannel,
   SearchResult,
   BrainStats,
@@ -56,22 +57,27 @@ export class ThoughtManager {
     sourceChannel: SourceChannel = "api",
     metadata?: Record<string, unknown>,
     thoughtType?: ThoughtType,
-    topic?: string
+    topic?: string,
+    lifeArea?: LifeArea
   ): Promise<Thought> {
     const thought = this.db.createThought({
       text,
       thought_type: thoughtType,
       topic,
+      life_area: lifeArea,
       source_channel: sourceChannel,
       metadata,
     });
 
     console.log(`[OpenBrain:Capture] Stored thought ${thought.id} (${text.length} chars)`);
 
+    // Fetch managed topics for classification prompt
+    const managedTopics = this.db.getManagedTopicNames();
+
     // Embed and classify concurrently — they're independent
     const [embResult, classResult] = await Promise.allSettled([
       generateEmbedding(text, this.config.embedding.ollamaUrl, this.config.embedding.model),
-      classifyThought(text, this.config.llm.provider, this.config.llm.model),
+      classifyThought(text, this.config.llm.provider, this.config.llm.model, managedTopics),
     ]);
 
     if (embResult.status === "fulfilled" && embResult.value) {
@@ -84,7 +90,13 @@ export class ThoughtManager {
     if (classResult.status === "fulfilled" && classResult.value) {
       const c = classResult.value;
       this.db.updateClassification(thought.id, c);
-      console.log(`[OpenBrain:Capture] Classified thought ${thought.id} as ${c.thought_type}`);
+      console.log(`[OpenBrain:Capture] Classified thought ${thought.id} as ${c.thought_type}, area=${c.life_area}`);
+
+      // Store any suggested topics
+      for (const suggested of c.suggested_topics) {
+        this.db.suggestTopic(suggested, thought.id);
+        console.log(`[OpenBrain:Capture] Topic suggestion: "${suggested}" from thought ${thought.id}`);
+      }
     } else {
       console.warn(`[OpenBrain:Capture] Classification skipped for ${thought.id}`);
     }
@@ -228,15 +240,21 @@ export class ThoughtManager {
     const thought = this.db.getThought(id);
     if (!thought) return null;
 
+    const managedTopics = this.db.getManagedTopicNames();
     const classification = await classifyThought(
       thought.text,
       this.config.llm.provider,
-      this.config.llm.model
+      this.config.llm.model,
+      managedTopics
     );
 
     if (classification) {
       this.db.updateClassification(id, classification);
-      console.log(`[OpenBrain:Reclassify] ${id} -> ${classification.thought_type}`);
+      console.log(`[OpenBrain:Reclassify] ${id} -> ${classification.thought_type}, area=${classification.life_area}`);
+
+      for (const suggested of classification.suggested_topics) {
+        this.db.suggestTopic(suggested, id);
+      }
     }
 
     return this.db.getThought(id);
@@ -281,20 +299,50 @@ export class ThoughtManager {
 
   async processUnclassified(batchSize: number = 50): Promise<{ processed: number; failed: number }> {
     const thoughts = this.db.getUnclassifiedThoughts(batchSize);
+    const managedTopics = this.db.getManagedTopicNames();
     const result = await processInChunks(thoughts, async (thought) => {
       const classification = await classifyThought(
         thought.text,
         this.config.llm.provider,
-        this.config.llm.model
+        this.config.llm.model,
+        managedTopics
       );
       if (classification) {
         this.db.updateClassification(thought.id, classification);
+        for (const suggested of classification.suggested_topics) {
+          this.db.suggestTopic(suggested, thought.id);
+        }
         return true;
       }
       return false;
     }, 3);
 
     console.log(`[OpenBrain:ProcessUnclassified] ${result.processed} processed, ${result.failed} failed`);
+    return result;
+  }
+
+  /** Reclassify thoughts that are missing life area assignment. */
+  async processMissingLifeArea(batchSize: number = 50): Promise<{ processed: number; failed: number }> {
+    const thoughts = this.db.getThoughtsMissingLifeArea(batchSize);
+    const managedTopics = this.db.getManagedTopicNames();
+    const result = await processInChunks(thoughts, async (thought) => {
+      const classification = await classifyThought(
+        thought.text,
+        this.config.llm.provider,
+        this.config.llm.model,
+        managedTopics
+      );
+      if (classification) {
+        this.db.updateClassification(thought.id, classification);
+        for (const suggested of classification.suggested_topics) {
+          this.db.suggestTopic(suggested, thought.id);
+        }
+        return true;
+      }
+      return false;
+    }, 3);
+
+    console.log(`[OpenBrain:ProcessMissingLifeArea] ${result.processed} processed, ${result.failed} failed`);
     return result;
   }
 

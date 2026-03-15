@@ -43,6 +43,10 @@ const CaptureThoughtTool = CreateTool(
         parts.push(`Topic: ${t.topic}`);
       }
 
+      if (t.auto_life_area) {
+        parts.push(`Life area: ${t.auto_life_area}`);
+      }
+
       if (t.auto_topics && t.auto_topics.length > 0) {
         parts.push(`Auto-topics: ${t.auto_topics.join(", ")}`);
       }
