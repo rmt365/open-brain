@@ -7,6 +7,7 @@ import {
   CaptureThoughtSchema,
   UpdateThoughtSchema,
   SearchThoughtsSchema,
+  IngestUrlSchema,
 } from "../schemas/schemas.ts";
 import type { ThoughtManager } from "../logic/thoughts.ts";
 import type {
@@ -59,6 +60,65 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
       });
     } catch (error) {
       console.error("[OpenBrain:Routes] Error getting topics:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // POST /ingest — ingest a URL: fetch, extract, chunk, embed
+  router.post(
+    "/ingest",
+    validateJson(IngestUrlSchema),
+    async (c) => {
+      try {
+        const body = c.req.valid("json");
+        const thought = await manager.ingestUrl(body.url, body.life_area);
+
+        if (!thought) {
+          return c.json<ApiResponse>(
+            { success: false, error: "Failed to extract content from URL" },
+            422,
+          );
+        }
+
+        return c.json<ApiResponse<Thought>>(
+          {
+            success: true,
+            data: thought,
+            message: "URL ingested",
+          },
+          201,
+        );
+      } catch (error) {
+        console.error("[OpenBrain:Routes] Error ingesting URL:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        return c.json<ApiResponse>({ success: false, error: msg }, 500);
+      }
+    },
+  );
+
+  // GET /forgotten — surface forgotten thoughts
+  router.get("/forgotten", (c) => {
+    try {
+      const minAgeDays = parseInt(c.req.query("min_age_days") || "30");
+      const limit = parseInt(c.req.query("limit") || "5");
+      const lifeArea = c.req.query("life_area") as LifeArea | undefined;
+
+      const thoughts = manager.surfaceForgotten({
+        minAgeDays: isNaN(minAgeDays) ? 30 : minAgeDays,
+        limit: isNaN(limit) ? 5 : Math.min(Math.max(limit, 1), 20),
+        lifeArea: lifeArea || undefined,
+      });
+
+      return c.json<ApiResponse<Thought[]>>({
+        success: true,
+        data: thoughts,
+        message: thoughts.length > 0
+          ? `${thoughts.length} forgotten thought${thoughts.length !== 1 ? "s" : ""} surfaced`
+          : "No forgotten thoughts to surface right now",
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error surfacing forgotten thoughts:", error);
       const msg = error instanceof Error ? error.message : String(error);
       return c.json<ApiResponse>({ success: false, error: msg }, 500);
     }

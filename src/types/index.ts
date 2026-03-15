@@ -66,6 +66,7 @@ export interface Thought {
 
   // Source tracking
   source_channel: SourceChannel;
+  source_url: string | null;
 
   // Classification (AI-assigned)
   auto_type: ThoughtType | null;
@@ -92,6 +93,7 @@ export interface Thought {
   // Timestamps
   created_at: string;
   updated_at: string;
+  last_surfaced: string | null;
 
   // Metadata
   metadata: Record<string, unknown> | null;
@@ -135,6 +137,22 @@ export interface SuggestedTopic {
 }
 
 // ============================================================
+// CHUNK TYPES (URL ingestion)
+// ============================================================
+
+export interface ThoughtChunk {
+  id: string;
+  thought_id: string;
+  chunk_index: number;
+  text: string;
+  start_offset: number;
+  end_offset: number;
+  embedding_model: string | null;
+  has_embedding: boolean;
+  created_at: string;
+}
+
+// ============================================================
 // SEARCH TYPES
 // ============================================================
 
@@ -168,6 +186,7 @@ export interface CaptureThoughtRequest {
   topic?: string;
   life_area?: LifeArea;
   source_channel?: SourceChannel;
+  source_url?: string;
   metadata?: Record<string, unknown>;
 }
 

@@ -206,4 +206,36 @@ export async function rejectSuggestion(
   });
 }
 
+// ============================================================
+// URL INGESTION
+// ============================================================
+
+export async function ingestUrl(
+  url: string,
+  lifeArea?: string,
+): Promise<ApiResponse<Thought>> {
+  return request<ApiResponse<Thought>>("/thoughts/ingest", {
+    method: "POST",
+    body: JSON.stringify({ url, life_area: lifeArea }),
+  });
+}
+
+// ============================================================
+// SURFACING FORGOTTEN THOUGHTS
+// ============================================================
+
+export async function getForgottenThoughts(
+  minAgeDays?: number,
+  limit?: number,
+  lifeArea?: string,
+): Promise<ApiResponse<Thought[]>> {
+  const searchParams = new URLSearchParams();
+  if (minAgeDays !== undefined) searchParams.set("min_age_days", String(minAgeDays));
+  if (limit !== undefined) searchParams.set("limit", String(limit));
+  if (lifeArea) searchParams.set("life_area", lifeArea);
+
+  const qs = searchParams.toString();
+  return request<ApiResponse<Thought[]>>(`/thoughts/forgotten${qs ? `?${qs}` : ""}`);
+}
+
 export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse };

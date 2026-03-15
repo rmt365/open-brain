@@ -116,6 +116,15 @@ export const UpdatePreferenceSchema = z.object({
 });
 
 // ============================================================
+// URL INGESTION SCHEMAS
+// ============================================================
+
+export const IngestUrlSchema = z.object({
+  url: z.string().url("Valid URL is required"),
+  life_area: LifeAreaSchema.optional(),
+});
+
+// ============================================================
 // TOPIC MANAGEMENT SCHEMAS
 // ============================================================
 
