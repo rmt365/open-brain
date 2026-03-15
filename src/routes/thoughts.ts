@@ -7,6 +7,7 @@ import {
   CaptureThoughtSchema,
   UpdateThoughtSchema,
   SearchThoughtsSchema,
+  IngestUrlSchema,
 } from "../schemas/schemas.ts";
 import type { ThoughtManager } from "../logic/thoughts.ts";
 import type {
@@ -16,6 +17,7 @@ import type {
   ListResponse,
   ApiResponse,
   ThoughtType,
+  LifeArea,
   SourceChannel,
   ThoughtStatus,
 } from "../types/index.ts";
@@ -63,6 +65,85 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
     }
   });
 
+  // POST /ingest — ingest a URL: fetch, extract, chunk, embed
+  router.post(
+    "/ingest",
+    validateJson(IngestUrlSchema),
+    async (c) => {
+      try {
+        const body = c.req.valid("json");
+        const thought = await manager.ingestUrl(body.url, body.life_area);
+
+        if (!thought) {
+          return c.json<ApiResponse>(
+            { success: false, error: "Failed to extract content from URL" },
+            422,
+          );
+        }
+
+        return c.json<ApiResponse<Thought>>(
+          {
+            success: true,
+            data: thought,
+            message: "URL ingested",
+          },
+          201,
+        );
+      } catch (error) {
+        console.error("[OpenBrain:Routes] Error ingesting URL:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        return c.json<ApiResponse>({ success: false, error: msg }, 500);
+      }
+    },
+  );
+
+  // GET /forgotten — surface forgotten thoughts
+  router.get("/forgotten", (c) => {
+    try {
+      const minAgeDays = parseInt(c.req.query("min_age_days") || "30");
+      const limit = parseInt(c.req.query("limit") || "5");
+      const lifeArea = c.req.query("life_area") as LifeArea | undefined;
+
+      const thoughts = manager.surfaceForgotten({
+        minAgeDays: isNaN(minAgeDays) ? 30 : minAgeDays,
+        limit: isNaN(limit) ? 5 : Math.min(Math.max(limit, 1), 20),
+        lifeArea: lifeArea || undefined,
+      });
+
+      return c.json<ApiResponse<Thought[]>>({
+        success: true,
+        data: thoughts,
+        message: thoughts.length > 0
+          ? `${thoughts.length} forgotten thought${thoughts.length !== 1 ? "s" : ""} surfaced`
+          : "No forgotten thoughts to surface right now",
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error surfacing forgotten thoughts:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // POST /reclassify-all — batch reclassify thoughts missing life area
+  router.post("/reclassify-all", async (c) => {
+    try {
+      const limit = parseInt(c.req.query("limit") || "50");
+      const result = await manager.processMissingLifeArea(
+        isNaN(limit) ? 50 : Math.min(Math.max(limit, 1), 200)
+      );
+
+      return c.json<ApiResponse<{ processed: number; failed: number }>>({
+        success: true,
+        data: result,
+        message: `Reclassified ${result.processed} thoughts (${result.failed} failed)`,
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error batch reclassifying:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
   // POST /search — semantic search
   router.post(
     "/search",
@@ -105,6 +186,7 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
           body.metadata,
           body.thought_type,
           body.topic,
+          body.life_area,
         );
 
         return c.json<ApiResponse<Thought>>(
@@ -128,6 +210,7 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
     try {
       const thought_type = c.req.query("type") as ThoughtType | undefined;
       const topic = c.req.query("topic");
+      const life_area = c.req.query("life_area") as LifeArea | undefined;
       const source_channel = c.req.query("channel") as SourceChannel | undefined;
       const since = c.req.query("since");
       const status = c.req.query("status") as ThoughtStatus | undefined;
@@ -137,6 +220,7 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
       const result = manager.list({
         thought_type: thought_type || undefined,
         topic: topic || undefined,
+        life_area: life_area || undefined,
         source_channel: source_channel || undefined,
         since: since || undefined,
         status: status || undefined,

@@ -25,6 +25,8 @@ interface Thought {
   text: string;
   thought_type: string;
   topic: string | null;
+  life_area: string | null;
+  auto_life_area: string | null;
   source_channel: string;
   auto_type: string | null;
   auto_topics: string[] | null;
@@ -156,4 +158,84 @@ export async function getPreferencesBlock(
   return request<ApiResponse<{ block: string }>>(`/preferences/block${qs ? `?${qs}` : ""}`);
 }
 
-export type { Thought, SearchResult, BrainStats, TopicEntry, ApiResponse, ListResponse };
+// ============================================================
+// TOPIC MANAGEMENT
+// ============================================================
+
+interface ManagedTopic {
+  id: number;
+  name: string;
+  life_area: string | null;
+  created_at: string;
+  active: boolean;
+}
+
+interface SuggestedTopic {
+  id: number;
+  name: string;
+  suggested_from_thought_id: string | null;
+  status: string;
+  created_at: string;
+}
+
+export async function getManagedTopics(): Promise<ApiResponse<ManagedTopic[]>> {
+  return request<ApiResponse<ManagedTopic[]>>("/topics");
+}
+
+export async function getPendingSuggestions(): Promise<ApiResponse<SuggestedTopic[]>> {
+  return request<ApiResponse<SuggestedTopic[]>>("/topics/suggestions");
+}
+
+export async function approveSuggestion(
+  id: number,
+  lifeArea?: string,
+): Promise<ApiResponse<ManagedTopic>> {
+  const searchParams = new URLSearchParams();
+  if (lifeArea) searchParams.set("life_area", lifeArea);
+  const qs = searchParams.toString();
+  return request<ApiResponse<ManagedTopic>>(`/topics/suggestions/${id}/approve${qs ? `?${qs}` : ""}`, {
+    method: "POST",
+  });
+}
+
+export async function rejectSuggestion(
+  id: number,
+): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>(`/topics/suggestions/${id}/reject`, {
+    method: "POST",
+  });
+}
+
+// ============================================================
+// URL INGESTION
+// ============================================================
+
+export async function ingestUrl(
+  url: string,
+  lifeArea?: string,
+): Promise<ApiResponse<Thought>> {
+  return request<ApiResponse<Thought>>("/thoughts/ingest", {
+    method: "POST",
+    body: JSON.stringify({ url, life_area: lifeArea }),
+  });
+}
+
+// ============================================================
+// SURFACING FORGOTTEN THOUGHTS
+// ============================================================
+
+export async function getForgottenThoughts(
+  minAgeDays?: number,
+  limit?: number,
+  lifeArea?: string,
+): Promise<ApiResponse<Thought[]>> {
+  const searchParams = new URLSearchParams();
+  if (minAgeDays !== undefined) searchParams.set("min_age_days", String(minAgeDays));
+  if (limit !== undefined) searchParams.set("limit", String(limit));
+  if (lifeArea) searchParams.set("life_area", lifeArea);
+
+  const qs = searchParams.toString();
+  return request<ApiResponse<Thought[]>>(`/thoughts/forgotten${qs ? `?${qs}` : ""}`);
+}
+
+export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse };

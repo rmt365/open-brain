@@ -6,12 +6,17 @@ import type {
   SourceChannel,
   ThoughtStatus,
   Sentiment,
+  LifeArea,
   ConstraintType,
   BrainStats,
   CaptureThoughtRequest,
   UpdateThoughtRequest,
   ListThoughtsRequest,
   TastePreference,
+  ManagedTopic,
+  SuggestedTopic,
+  SuggestionStatus,
+  ThoughtChunk,
 } from "../types/index.ts";
 import type { ClassificationResult } from "../logic/classifier.ts";
 
@@ -42,11 +47,12 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       extensions: VSS_EXTENSIONS,
     });
 
-    // Create VSS virtual table and rebuild index from existing embeddings
+    // Create VSS virtual tables and rebuild index from existing embeddings
     const vssReady = this.createVSSTable();
     if (vssReady) {
       const { indexed } = this.rebuildVSSIndex();
       console.log(`[OpenBrainDB] VSS ready — ${indexed} embeddings indexed`);
+      this.createChunkVSSTable();
     } else {
       console.log("[OpenBrainDB] VSS not available — search will use text fallback");
     }
@@ -229,8 +235,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
 
     const stmt = this.db.prepare(`
       INSERT INTO thoughts (
-        id, text, thought_type, topic, source_channel, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        id, text, thought_type, topic, life_area, source_channel, source_url, metadata
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -238,7 +244,9 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       data.text,
       data.thought_type || "note",
       data.topic || null,
+      data.life_area || null,
       data.source_channel || "api",
+      data.source_url || null,
       data.metadata ? JSON.stringify(data.metadata) : null
     );
 
@@ -283,6 +291,13 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       // Default to active thoughts only
       query += " AND status = 'active'";
       countQuery += " AND status = 'active'";
+    }
+
+    if (filters.life_area) {
+      query += " AND (life_area = ? OR auto_life_area = ?)";
+      countQuery += " AND (life_area = ? OR auto_life_area = ?)";
+      params.push(filters.life_area, filters.life_area);
+      countParams.push(filters.life_area, filters.life_area);
     }
 
     if (filters.topic) {
@@ -333,6 +348,10 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       updates.push("topic = ?");
       params.push(data.topic);
     }
+    if (data.life_area !== undefined) {
+      updates.push("life_area = ?");
+      params.push(data.life_area);
+    }
     if (data.status !== undefined) {
       updates.push("status = ?");
       params.push(data.status);
@@ -370,7 +389,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     const count = this.db.prepare(`
       UPDATE thoughts
       SET auto_type = ?, auto_topics = ?, confidence = ?,
-          auto_people = ?, auto_action_items = ?, auto_dates_mentioned = ?, auto_sentiment = ?
+          auto_people = ?, auto_action_items = ?, auto_dates_mentioned = ?, auto_sentiment = ?,
+          auto_life_area = ?
       WHERE id = ?
     `).run(
       result.thought_type,
@@ -380,6 +400,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       JSON.stringify(result.action_items),
       JSON.stringify(result.dates_mentioned),
       result.sentiment,
+      result.life_area || null,
       id
     );
     return count > 0;
@@ -503,6 +524,9 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       text: row.text as string,
       thought_type: (row.thought_type || "note") as ThoughtType,
       topic: (row.topic as string) || null,
+      life_area: (row.life_area as LifeArea) || null,
+      auto_life_area: (row.auto_life_area as LifeArea) || null,
+      source_url: (row.source_url as string) || null,
       source_channel: (row.source_channel || "api") as SourceChannel,
       auto_type: (row.auto_type as ThoughtType) || null,
       auto_topics: row.auto_topics ? JSON.parse(row.auto_topics as string) : null,
@@ -516,8 +540,365 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       status: (row.status || "active") as ThoughtStatus,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
+      last_surfaced: (row.last_surfaced as string) || null,
       metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
     };
+  }
+
+  // ============================================
+  // THOUGHT CHUNKS (URL ingestion)
+  // ============================================
+
+  /** Create VSS table for chunks. Safe to call multiple times. */
+  createChunkVSSTable(): boolean {
+    try {
+      this.db.exec(
+        `CREATE VIRTUAL TABLE IF NOT EXISTS vss_chunks USING vss0(embedding(1024))`
+      );
+      return true;
+    } catch (e) {
+      console.warn(`[OpenBrainDB] Could not create vss_chunks table: ${e}`);
+      return false;
+    }
+  }
+
+  createChunk(data: {
+    thoughtId: string;
+    chunkIndex: number;
+    text: string;
+    startOffset: number;
+    endOffset: number;
+  }): ThoughtChunk {
+    const id = crypto.randomUUID();
+    this.db.prepare(`
+      INSERT INTO thought_chunks (id, thought_id, chunk_index, text, start_offset, end_offset)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, data.thoughtId, data.chunkIndex, data.text, data.startOffset, data.endOffset);
+
+    return this.getChunk(id)!;
+  }
+
+  getChunk(id: string): ThoughtChunk | null {
+    const row = this.db.prepare(
+      "SELECT * FROM thought_chunks WHERE id = ?"
+    ).get(id) as Record<string, unknown> | undefined;
+    return row ? this.parseChunkRow(row) : null;
+  }
+
+  getChunksForThought(thoughtId: string): ThoughtChunk[] {
+    const rows = this.db.prepare(
+      "SELECT * FROM thought_chunks WHERE thought_id = ? ORDER BY chunk_index"
+    ).all(thoughtId) as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseChunkRow(row));
+  }
+
+  storeChunkEmbedding(id: string, embedding: Float32Array, model: string = "mxbai-embed-large"): boolean {
+    const embeddingBytes = new Uint8Array(embedding.buffer);
+    const count = this.db.prepare(`
+      UPDATE thought_chunks SET embedding = ?, embedding_model = ? WHERE id = ?
+    `).run(embeddingBytes, model, id);
+
+    if (count > 0) {
+      this.upsertChunkVSSEmbedding(id);
+      return true;
+    }
+    return false;
+  }
+
+  private upsertChunkVSSEmbedding(chunkId: string): boolean {
+    try {
+      const row = this.db.prepare(
+        `SELECT _vss_rowid, embedding FROM thought_chunks WHERE id = ?`
+      ).get(chunkId) as { _vss_rowid: number; embedding: Uint8Array } | undefined;
+
+      if (!row || !row.embedding || !row._vss_rowid) return false;
+
+      this.db.prepare(
+        `INSERT OR REPLACE INTO vss_chunks(rowid, embedding) VALUES (?, ?)`
+      ).run(row._vss_rowid, row.embedding);
+      return true;
+    } catch (e) {
+      console.warn(`[OpenBrainDB] VSS chunk upsert failed for ${chunkId}: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * Search chunks via VSS, returning the parent thought for each hit.
+   * Deduplicates by thought_id so you don't get the same thought multiple times.
+   */
+  vssSearchChunksWithThoughts(
+    queryEmbedding: Float32Array,
+    limit: number = 20
+  ): Array<{ thought: Thought; distance: number; matchedChunkText: string }> {
+    try {
+      // Check if vss_chunks exists and has data
+      const hasTable = (() => {
+        try {
+          const r = this.db.prepare(
+            `SELECT name FROM sqlite_master WHERE type='table' AND name='vss_chunks'`
+          ).get() as { name: string } | undefined;
+          if (!r) return false;
+          const cnt = this.db.prepare(`SELECT count(*) as cnt FROM vss_chunks`).get() as { cnt: number };
+          return cnt.cnt > 0;
+        } catch { return false; }
+      })();
+
+      if (!hasTable) return [];
+
+      const queryBytes = new Uint8Array(queryEmbedding.buffer);
+
+      const rows = this.db.prepare(`
+        SELECT c.text as chunk_text, c.thought_id, sub.distance
+        FROM (
+          SELECT rowid, distance
+          FROM vss_chunks
+          WHERE vss_search(embedding, ?)
+          LIMIT ?
+        ) sub
+        JOIN thought_chunks c ON c._vss_rowid = sub.rowid
+      `).all(queryBytes, limit * 2) as Array<Record<string, unknown>>;
+
+      // Deduplicate by thought_id, keeping best (lowest) distance
+      const seen = new Map<string, { distance: number; chunkText: string }>();
+      for (const row of rows) {
+        const thoughtId = row.thought_id as string;
+        const distance = row.distance as number;
+        const existing = seen.get(thoughtId);
+        if (!existing || distance < existing.distance) {
+          seen.set(thoughtId, { distance, chunkText: row.chunk_text as string });
+        }
+      }
+
+      const results: Array<{ thought: Thought; distance: number; matchedChunkText: string }> = [];
+      for (const [thoughtId, { distance, chunkText }] of seen) {
+        if (results.length >= limit) break;
+        const thought = this.getThought(thoughtId);
+        if (thought && thought.status === "active") {
+          results.push({ thought, distance, matchedChunkText: chunkText });
+        }
+      }
+
+      return results;
+    } catch (e) {
+      console.warn(`[OpenBrainDB] VSS chunk search failed: ${e}`);
+      return [];
+    }
+  }
+
+  getUnembeddedChunks(limit: number = 50): Array<ThoughtChunk & { thought_id: string }> {
+    const rows = this.db.prepare(`
+      SELECT * FROM thought_chunks
+      WHERE embedding IS NULL
+      ORDER BY created_at ASC
+      LIMIT ?
+    `).all(limit) as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseChunkRow(row));
+  }
+
+  private parseChunkRow(row: Record<string, unknown>): ThoughtChunk {
+    return {
+      id: row.id as string,
+      thought_id: row.thought_id as string,
+      chunk_index: row.chunk_index as number,
+      text: row.text as string,
+      start_offset: row.start_offset as number,
+      end_offset: row.end_offset as number,
+      embedding_model: (row.embedding_model as string) || null,
+      has_embedding: row.embedding !== null && row.embedding !== undefined,
+      created_at: row.created_at as string,
+    };
+  }
+
+  // ============================================
+  // SURFACING FORGOTTEN THOUGHTS
+  // ============================================
+
+  /**
+   * Get old thoughts that haven't been surfaced recently.
+   * Prioritizes thoughts that are older and have never been surfaced.
+   */
+  getForgottenThoughts(options: {
+    minAgeDays?: number;
+    limit?: number;
+    lifeArea?: LifeArea;
+  } = {}): Thought[] {
+    const minAge = options.minAgeDays ?? 30;
+    const limit = options.limit ?? 5;
+
+    let query = `
+      SELECT * FROM thoughts
+      WHERE status = 'active'
+        AND created_at < datetime('now', '-${minAge} days')
+        AND (last_surfaced IS NULL OR last_surfaced < datetime('now', '-7 days'))
+    `;
+    const params: (string | number)[] = [];
+
+    if (options.lifeArea) {
+      query += " AND (life_area = ? OR auto_life_area = ?)";
+      params.push(options.lifeArea, options.lifeArea);
+    }
+
+    // Score: prioritize never-surfaced, then oldest surfaced
+    query += `
+      ORDER BY
+        CASE WHEN last_surfaced IS NULL THEN 0 ELSE 1 END,
+        COALESCE(last_surfaced, created_at) ASC
+      LIMIT ?
+    `;
+    params.push(limit);
+
+    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseThoughtRow(row));
+  }
+
+  /** Mark thoughts as surfaced (updates last_surfaced timestamp). */
+  markAsSurfaced(ids: string[]): void {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => "?").join(",");
+    this.db.prepare(
+      `UPDATE thoughts SET last_surfaced = datetime('now') WHERE id IN (${placeholders})`
+    ).run(...ids);
+  }
+
+  // ============================================
+  // MANAGED TOPICS
+  // ============================================
+
+  getManagedTopics(activeOnly: boolean = true): ManagedTopic[] {
+    const query = activeOnly
+      ? "SELECT * FROM managed_topics WHERE active = 1 ORDER BY name"
+      : "SELECT * FROM managed_topics ORDER BY name";
+    const rows = this.db.prepare(query).all() as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseManagedTopicRow(row));
+  }
+
+  getManagedTopicNames(): string[] {
+    const rows = this.db.prepare(
+      "SELECT name FROM managed_topics WHERE active = 1 ORDER BY name"
+    ).all() as Array<{ name: string }>;
+    return rows.map((r) => r.name);
+  }
+
+  addManagedTopic(name: string, lifeArea?: LifeArea): ManagedTopic {
+    this.db.prepare(
+      "INSERT INTO managed_topics (name, life_area) VALUES (?, ?)"
+    ).run(name.toLowerCase().trim(), lifeArea || null);
+
+    const row = this.db.prepare(
+      "SELECT * FROM managed_topics WHERE name = ?"
+    ).get(name.toLowerCase().trim()) as Record<string, unknown>;
+
+    return this.parseManagedTopicRow(row);
+  }
+
+  deactivateManagedTopic(id: number): boolean {
+    const count = this.db.prepare(
+      "UPDATE managed_topics SET active = 0 WHERE id = ?"
+    ).run(id);
+    return count > 0;
+  }
+
+  private parseManagedTopicRow(row: Record<string, unknown>): ManagedTopic {
+    return {
+      id: row.id as number,
+      name: row.name as string,
+      life_area: (row.life_area as LifeArea) || null,
+      created_at: row.created_at as string,
+      active: (row.active as number) === 1,
+    };
+  }
+
+  // ============================================
+  // SUGGESTED TOPICS
+  // ============================================
+
+  suggestTopic(name: string, thoughtId?: string): SuggestedTopic {
+    this.db.prepare(
+      "INSERT INTO suggested_topics (name, suggested_from_thought_id) VALUES (?, ?)"
+    ).run(name.toLowerCase().trim(), thoughtId || null);
+
+    const row = this.db.prepare(
+      "SELECT * FROM suggested_topics WHERE rowid = last_insert_rowid()"
+    ).get() as Record<string, unknown>;
+
+    return this.parseSuggestedTopicRow(row);
+  }
+
+  getPendingSuggestions(): SuggestedTopic[] {
+    const rows = this.db.prepare(
+      "SELECT * FROM suggested_topics WHERE status = 'pending' ORDER BY created_at DESC"
+    ).all() as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseSuggestedTopicRow(row));
+  }
+
+  approveSuggestion(id: number, lifeArea?: LifeArea): ManagedTopic | null {
+    const row = this.db.prepare(
+      "SELECT * FROM suggested_topics WHERE id = ? AND status = 'pending'"
+    ).get(id) as Record<string, unknown> | undefined;
+
+    if (!row) return null;
+
+    const name = (row.name as string).toLowerCase().trim();
+
+    // Check if topic already exists
+    const existing = this.db.prepare(
+      "SELECT * FROM managed_topics WHERE name = ?"
+    ).get(name) as Record<string, unknown> | undefined;
+
+    if (existing) {
+      // Just mark the suggestion as approved, reactivate if needed
+      this.db.prepare("UPDATE suggested_topics SET status = 'approved' WHERE id = ?").run(id);
+      this.db.prepare("UPDATE managed_topics SET active = 1 WHERE name = ?").run(name);
+      return this.parseManagedTopicRow(
+        this.db.prepare("SELECT * FROM managed_topics WHERE name = ?").get(name) as Record<string, unknown>
+      );
+    }
+
+    const transaction = this.db.transaction(() => {
+      this.db.prepare("UPDATE suggested_topics SET status = 'approved' WHERE id = ?").run(id);
+      this.db.prepare(
+        "INSERT INTO managed_topics (name, life_area) VALUES (?, ?)"
+      ).run(name, lifeArea || null);
+    });
+
+    transaction();
+
+    return this.parseManagedTopicRow(
+      this.db.prepare("SELECT * FROM managed_topics WHERE name = ?").get(name) as Record<string, unknown>
+    );
+  }
+
+  rejectSuggestion(id: number): boolean {
+    const count = this.db.prepare(
+      "UPDATE suggested_topics SET status = 'rejected' WHERE id = ? AND status = 'pending'"
+    ).run(id);
+    return count > 0;
+  }
+
+  private parseSuggestedTopicRow(row: Record<string, unknown>): SuggestedTopic {
+    return {
+      id: row.id as number,
+      name: row.name as string,
+      suggested_from_thought_id: (row.suggested_from_thought_id as string) || null,
+      status: row.status as SuggestionStatus,
+      created_at: row.created_at as string,
+    };
+  }
+
+  // ============================================
+  // BACKFILL: thoughts missing life area
+  // ============================================
+
+  getThoughtsMissingLifeArea(limit: number = 50): Thought[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM thoughts
+      WHERE auto_life_area IS NULL AND status = 'active'
+      ORDER BY created_at ASC
+      LIMIT ?
+    `).all(limit) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => this.parseThoughtRow(row));
   }
 
   // ============================================

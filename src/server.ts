@@ -8,6 +8,7 @@ import type { ServiceConfig } from "./config.ts";
 import type { OpenBrainDatabaseManager } from "./db/openBrainDatabaseManager.ts";
 import { createThoughtRoutes } from "./routes/thoughts.ts";
 import { createPreferenceRoutes } from "./routes/preferences.ts";
+import { createTopicRoutes } from "./routes/topics.ts";
 import { createUIRoutes } from "./ui/routes.ts";
 import { ThoughtManager } from "./logic/thoughts.ts";
 import { createAuthMiddleware } from "./middleware/auth.ts";
@@ -70,6 +71,9 @@ export class OpenBrainServer {
 
     // Thought CRUD, search, stats, and classification routes
     this.app.route("/thoughts", createThoughtRoutes(this.thoughtManager));
+
+    // Topic management routes (managed topics + suggestions)
+    this.app.route("/topics", createTopicRoutes(this.dbManager));
 
     // Taste preference CRUD and block assembly routes
     this.app.route("/preferences", createPreferenceRoutes(this.dbManager));

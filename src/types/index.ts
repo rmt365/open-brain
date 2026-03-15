@@ -35,6 +35,17 @@ export type Sentiment =
   | "neutral"
   | "mixed";
 
+export type LifeArea =
+  | "craft"
+  | "business"
+  | "systems"
+  | "health"
+  | "marriage"
+  | "relationships"
+  | "creative"
+  | "wild"
+  | "meta";
+
 export type ConstraintType =
   | "domain rule"
   | "quality standard"
@@ -55,11 +66,16 @@ export interface Thought {
 
   // Source tracking
   source_channel: SourceChannel;
+  source_url: string | null;
 
   // Classification (AI-assigned)
   auto_type: ThoughtType | null;
   auto_topics: string[] | null;
   confidence: number | null;
+
+  // Life area
+  life_area: LifeArea | null;
+  auto_life_area: LifeArea | null;
 
   // Extracted metadata (AI-assigned)
   auto_people: string[] | null;
@@ -77,6 +93,7 @@ export interface Thought {
   // Timestamps
   created_at: string;
   updated_at: string;
+  last_surfaced: string | null;
 
   // Metadata
   metadata: Record<string, unknown> | null;
@@ -95,6 +112,44 @@ export interface TastePreference {
   constraint_type: ConstraintType;
   created_at: string;
   updated_at: string;
+}
+
+// ============================================================
+// TAXONOMY TYPES
+// ============================================================
+
+export type SuggestionStatus = "pending" | "approved" | "rejected";
+
+export interface ManagedTopic {
+  id: number;
+  name: string;
+  life_area: LifeArea | null;
+  created_at: string;
+  active: boolean;
+}
+
+export interface SuggestedTopic {
+  id: number;
+  name: string;
+  suggested_from_thought_id: string | null;
+  status: SuggestionStatus;
+  created_at: string;
+}
+
+// ============================================================
+// CHUNK TYPES (URL ingestion)
+// ============================================================
+
+export interface ThoughtChunk {
+  id: string;
+  thought_id: string;
+  chunk_index: number;
+  text: string;
+  start_offset: number;
+  end_offset: number;
+  embedding_model: string | null;
+  has_embedding: boolean;
+  created_at: string;
 }
 
 // ============================================================
@@ -129,7 +184,9 @@ export interface CaptureThoughtRequest {
   text: string;
   thought_type?: ThoughtType;
   topic?: string;
+  life_area?: LifeArea;
   source_channel?: SourceChannel;
+  source_url?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -137,6 +194,7 @@ export interface UpdateThoughtRequest {
   text?: string;
   thought_type?: ThoughtType;
   topic?: string;
+  life_area?: LifeArea;
   status?: ThoughtStatus;
   metadata?: Record<string, unknown>;
 }
@@ -150,6 +208,7 @@ export interface SearchThoughtsRequest {
 export interface ListThoughtsRequest {
   thought_type?: ThoughtType;
   topic?: string;
+  life_area?: LifeArea;
   source_channel?: SourceChannel;
   since?: string;
   status?: ThoughtStatus;
