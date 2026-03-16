@@ -3,7 +3,8 @@
 #
 # Required env vars (from .env file):
 #   INSTANCE_NAME     - Container name prefix (e.g., robin-brain)
-#   SUBDOMAIN         - Traefik subdomain (e.g., robin → robin.brain.cerulean.studio)
+#   SUBDOMAIN         - Traefik subdomain (e.g., robin → robin.brain.ceruleancore.ca)
+#   DOMAIN_BASE       - Base domain (e.g., brain.ceruleancore.ca)
 #   ANTHROPIC_API_KEY - For thought classification
 #   OPEN_BRAIN_API_KEY - API key for this instance
 
@@ -15,8 +16,10 @@ services:
       - PORT=3012
       - DATABASE_PATH=/app/database/open-brain.db
       - OLLAMA_URL=http://ob-ollama:11434
-      - EMBEDDING_MODEL=all-minilm
+      - EMBEDDING_MODEL=mxbai-embed-large
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - AI_MODEL=${AI_MODEL:-claude-haiku-4-5-20251001}
       - OPEN_BRAIN_API_KEY=${OPEN_BRAIN_API_KEY}
       - SERVICE_NAME=${INSTANCE_NAME}
       - ENABLE_LITESTREAM=${ENABLE_LITESTREAM:-true}
@@ -30,7 +33,7 @@ services:
       - /root/open-brain/data/${INSTANCE_NAME}:/app/database
     networks:
       - ob-network
-      - traefik-public
+      - todo-pile_web
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:3012/health"]
@@ -40,10 +43,11 @@ services:
       start_period: 30s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.${INSTANCE_NAME}.rule=Host(`${SUBDOMAIN}.brain.cerulean.studio`)"
+      - "traefik.http.routers.${INSTANCE_NAME}.rule=Host(`${SUBDOMAIN}.${DOMAIN_BASE}`)"
       - "traefik.http.routers.${INSTANCE_NAME}.entrypoints=websecure"
-      - "traefik.http.routers.${INSTANCE_NAME}.tls.certresolver=le"
+      - "traefik.http.routers.${INSTANCE_NAME}.tls.certresolver=letsencrypt"
       - "traefik.http.services.${INSTANCE_NAME}.loadbalancer.server.port=3012"
+      - "traefik.docker.network=todo-pile_web"
 
   mcp:
     image: ghcr.io/rmt365/open-brain/mcp:latest
@@ -56,7 +60,7 @@ services:
         condition: service_healthy
     networks:
       - ob-network
-      - traefik-public
+      - todo-pile_web
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:3013/health"]
@@ -66,10 +70,11 @@ services:
       start_period: 30s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.${INSTANCE_NAME}-mcp.rule=Host(`${SUBDOMAIN}.brain.cerulean.studio`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp.rule=Host(`${SUBDOMAIN}.${DOMAIN_BASE}`) && PathPrefix(`/mcp`)"
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.entrypoints=websecure"
-      - "traefik.http.routers.${INSTANCE_NAME}-mcp.tls.certresolver=le"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp.tls.certresolver=letsencrypt"
       - "traefik.http.services.${INSTANCE_NAME}-mcp.loadbalancer.server.port=3013"
+      - "traefik.docker.network=todo-pile_web"
 
   telegram:
     image: ghcr.io/rmt365/open-brain/telegram:latest
@@ -90,5 +95,5 @@ services:
 networks:
   ob-network:
     external: true
-  traefik-public:
+  todo-pile_web:
     external: true
