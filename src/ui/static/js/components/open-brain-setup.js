@@ -193,6 +193,156 @@ class OpenBrainSetup extends LitElement {
     } catch { /* ignore */ }
   }
 
+  _getOpenApiSpec(serverUrl) {
+    return `openapi: 3.1.0
+info:
+  title: Open Brain
+  description: Personal knowledge management — capture thoughts, search your brain, manage preferences.
+  version: 1.0.0
+servers:
+  - url: ${serverUrl}
+paths:
+  /thoughts:
+    post:
+      operationId: captureThought
+      summary: Capture a thought
+      description: Store a thought, idea, note, or observation. Auto-classifies and generates embeddings. URLs in text are automatically fetched and indexed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                source_channel:
+                  type: string
+                  default: api
+    get:
+      operationId: listThoughts
+      summary: List recent thoughts
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+  /thoughts/search:
+    post:
+      operationId: searchBrain
+      summary: Semantic search across all thoughts
+      description: Hybrid search using vector embeddings and keyword matching.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+                  default: 10
+  /thoughts/ingest:
+    post:
+      operationId: ingestUrl
+      summary: Ingest a URL
+      description: Fetch a web page, extract content, chunk and embed for semantic search.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+  /thoughts/forgotten:
+    get:
+      operationId: surfaceForgotten
+      summary: Surface forgotten thoughts
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+  /thoughts/stats:
+    get:
+      operationId: getBrainStats
+      summary: Get brain statistics
+  /preferences:
+    get:
+      operationId: listPreferences
+      summary: List taste preferences
+      parameters:
+        - name: domain
+          in: query
+          schema:
+            type: string
+    post:
+      operationId: addPreference
+      summary: Record a preference
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [preference_name, reject, want]
+              properties:
+                preference_name:
+                  type: string
+                domain:
+                  type: string
+                  default: general
+                reject:
+                  type: string
+                want:
+                  type: string
+  /preferences/block:
+    get:
+      operationId: getTasteProfile
+      summary: Get compiled preference block for use as system prompt context
+  /preferences/{id}:
+    delete:
+      operationId: removePreference
+      summary: Delete a preference
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []`;
+  }
+
+  _getOpenApiSpecPreview(serverUrl) {
+    const spec = this._getOpenApiSpec(serverUrl);
+    return spec.length > 400 ? spec.substring(0, 400) + '\n...(copy for full spec)' : spec;
+  }
+
   render() {
     const url = this._getPublicUrl();
     const mcpUrl = `${url}/mcp`;
@@ -282,13 +432,20 @@ class OpenBrainSetup extends LitElement {
           <h3>ChatGPT (Custom GPT)</h3>
           <p>Create a Custom GPT with Actions:</p>
           <p>1. Go to chatgpt.com/gpts/editor</p>
-          <p>2. Add Action → paste the OpenAPI spec from the repo (docs/openapi-chatgpt.yaml)</p>
-          <p>3. Authentication: API Key, type Bearer</p>
+          <p>2. Configure → Actions → Create new action</p>
+          <p>3. Paste the OpenAPI spec below into the schema editor:</p>
+          <div class="code-block" style="max-height: 200px; overflow-y: auto; font-size: 11px;">
+            <button class="copy-btn ${this._copied === 'spec' ? 'copied' : ''}"
+              @click=${() => this._copy('spec', this._getOpenApiSpec(url))}>
+              ${this._copied === 'spec' ? 'Copied' : 'Copy Spec'}
+            </button>${this._getOpenApiSpecPreview(url)}</div>
+          <p style="margin-top: 8px;">4. Authentication: select <strong>API Key</strong>, type <strong>Bearer</strong></p>
           <div class="code-block">
             <button class="copy-btn ${this._copied === 'gpt' ? 'copied' : ''}"
               @click=${() => this._copy('gpt', this._apiKey)}>
               ${this._copied === 'gpt' ? 'Copied' : 'Copy'}
             </button>Bearer Token: ${this._apiKey}</div>
+          <p style="margin-top: 8px;">5. Save and publish (private)</p>
         </div>
 
         `}

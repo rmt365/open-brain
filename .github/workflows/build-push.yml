@@ -63,16 +63,26 @@ jobs:
             # Pull latest images
             docker pull ghcr.io/rmt365/open-brain/brain:latest
             docker pull ghcr.io/rmt365/open-brain/mcp:latest
+            docker pull ghcr.io/rmt365/open-brain/telegram:latest
 
-            # Restart all instances
+            # Restart all instances (include telegram profile for instances that have it configured)
             for env_file in deploy/instances/*.env; do
               [ -f "$env_file" ] || continue
               name=$(basename "$env_file" .env)
               echo "[deploy] Restarting $name..."
-              docker compose -f deploy/docker-compose.instance.yml \
-                --env-file "$env_file" \
-                -p "$name" \
-                up -d
+              # Check if telegram is configured for this instance
+              if grep -q "TELEGRAM_BOT_TOKEN=." "$env_file"; then
+                docker compose -f deploy/docker-compose.instance.yml \
+                  --env-file "$env_file" \
+                  -p "$name" \
+                  --profile telegram \
+                  up -d
+              else
+                docker compose -f deploy/docker-compose.instance.yml \
+                  --env-file "$env_file" \
+                  -p "$name" \
+                  up -d
+              fi
             done
 
             echo "[deploy] Done"
