@@ -1,0 +1,447 @@
+openapi: 3.1.0
+info:
+  title: Open Brain
+  description: Personal knowledge management — capture thoughts, search your brain, manage preferences.
+  version: 1.0.0
+servers:
+  - url: https://robin.brain.ceruleancore.ca
+
+paths:
+  /thoughts:
+    post:
+      operationId: captureThought
+      summary: Capture a thought
+      description: Store a thought, idea, note, or observation. The system automatically classifies it, extracts topics, and generates embeddings for semantic search. If the text contains a URL, the page content is automatically fetched and indexed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  description: The thought text to capture
+                source_channel:
+                  type: string
+                  enum: [cli, web, api, mcp, chat, import, telegram]
+                  default: api
+                  description: Where this thought came from
+                thought_type:
+                  type: string
+                  enum: [note, idea, task, question, observation, decision, reference, reflection]
+                  description: Optional type override (auto-classified if not provided)
+                life_area:
+                  type: string
+                  enum: [craft, business, systems, health, marriage, relationships, creative, wild, meta]
+                  description: Optional life area override (auto-classified if not provided)
+      responses:
+        "201":
+          description: Thought captured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThoughtResponse"
+    get:
+      operationId: listThoughts
+      summary: List recent thoughts
+      description: Browse thoughts with optional filters by type, topic, and source channel.
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [note, idea, task, question, observation, decision, reference, reflection]
+          description: Filter by thought type
+        - name: topic
+          in: query
+          schema:
+            type: string
+          description: Filter by topic
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: Number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination offset
+      responses:
+        "200":
+          description: List of thoughts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Thought"
+                      total:
+                        type: integer
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+
+  /thoughts/search:
+    post:
+      operationId: searchBrain
+      summary: Semantic search across all thoughts
+      description: Search using natural language. Uses vector embeddings for semantic matching — finds conceptually related thoughts, not just keyword matches.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  description: Natural language search query
+                thought_type:
+                  type: string
+                  enum: [note, idea, task, question, observation, decision, reference, reflection]
+                  description: Optional type filter
+                limit:
+                  type: integer
+                  default: 10
+                  maximum: 100
+      responses:
+        "200":
+          description: Search results ranked by relevance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        thought:
+                          $ref: "#/components/schemas/Thought"
+                        similarity:
+                          type: number
+                          description: Relevance score (0-1)
+                        rank:
+                          type: integer
+
+  /thoughts/ingest:
+    post:
+      operationId: ingestUrl
+      summary: Ingest a URL
+      description: Fetch a web page, extract its content, chunk it for semantic search, and store as a reference thought. Use this to bookmark articles or save web pages to the brain.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: The URL to fetch and ingest
+                life_area:
+                  type: string
+                  enum: [craft, business, systems, health, marriage, relationships, creative, wild, meta]
+      responses:
+        "201":
+          description: URL ingested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThoughtResponse"
+
+  /thoughts/forgotten:
+    get:
+      operationId: surfaceForgotten
+      summary: Surface forgotten thoughts
+      description: Resurface old thoughts that haven't been seen in a while. Useful for rediscovering past ideas and observations.
+      parameters:
+        - name: min_age_days
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: Minimum age in days
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+          description: Number of thoughts to surface
+        - name: life_area
+          in: query
+          schema:
+            type: string
+            enum: [craft, business, systems, health, marriage, relationships, creative, wild, meta]
+      responses:
+        "200":
+          description: Forgotten thoughts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Thought"
+
+  /thoughts/stats:
+    get:
+      operationId: getBrainStats
+      summary: Get brain statistics
+      description: Overview of your brain — total thoughts, breakdown by type and channel, embedding coverage.
+      responses:
+        "200":
+          description: Brain stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      total_thoughts:
+                        type: integer
+                      by_type:
+                        type: object
+                      by_channel:
+                        type: object
+                      embedded_count:
+                        type: integer
+                      classified_count:
+                        type: integer
+
+  /preferences:
+    get:
+      operationId: listPreferences
+      summary: List taste preferences
+      description: Get all recorded preferences and decision guardrails, optionally filtered by domain.
+      parameters:
+        - name: domain
+          in: query
+          schema:
+            type: string
+          description: Filter by domain (e.g., 'writing', 'code', 'strategy')
+      responses:
+        "200":
+          description: List of preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TastePreference"
+    post:
+      operationId: addPreference
+      summary: Record a preference
+      description: Save a user preference or decision as a guardrail. Captures what they want and what they reject. Use when the user expresses a clear preference or makes a decision about how they want things done.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [preference_name, reject, want]
+              properties:
+                preference_name:
+                  type: string
+                  description: Short name (e.g., 'Writing tone', 'Code style')
+                domain:
+                  type: string
+                  default: general
+                  description: Category (e.g., 'writing', 'code', 'strategy')
+                reject:
+                  type: string
+                  description: What the user does NOT want
+                want:
+                  type: string
+                  description: What the user DOES want
+                constraint_type:
+                  type: string
+                  enum: [domain rule, quality standard, business logic, formatting]
+                  default: quality standard
+      responses:
+        "201":
+          description: Preference created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/TastePreference"
+
+  /preferences/block:
+    get:
+      operationId: getTasteProfile
+      summary: Get compiled preference block
+      description: Returns all preferences formatted as a text block suitable for use as system prompt context. This is how preferences should be consumed — as guardrails for content generation.
+      parameters:
+        - name: domain
+          in: query
+          schema:
+            type: string
+          description: Filter by domain
+      responses:
+        "200":
+          description: Preference block
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      block:
+                        type: string
+                        description: Formatted preference text block
+
+  /preferences/{id}:
+    delete:
+      operationId: removePreference
+      summary: Delete a preference
+      description: Remove a recorded preference by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Preference deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+components:
+  schemas:
+    Thought:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        thought_type:
+          type: string
+        topic:
+          type: string
+          nullable: true
+        life_area:
+          type: string
+          nullable: true
+        auto_life_area:
+          type: string
+          nullable: true
+        source_url:
+          type: string
+          nullable: true
+        source_channel:
+          type: string
+        auto_type:
+          type: string
+          nullable: true
+        auto_topics:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+          nullable: true
+        auto_sentiment:
+          type: string
+          nullable: true
+        has_embedding:
+          type: boolean
+        status:
+          type: string
+        created_at:
+          type: string
+        updated_at:
+          type: string
+        metadata:
+          type: object
+          nullable: true
+
+    ThoughtResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/Thought"
+        message:
+          type: string
+
+    TastePreference:
+      type: object
+      properties:
+        id:
+          type: integer
+        preference_name:
+          type: string
+        domain:
+          type: string
+        reject:
+          type: string
+        want:
+          type: string
+        constraint_type:
+          type: string
+        created_at:
+          type: string
+        updated_at:
+          type: string
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+security:
+  - bearerAuth: []
