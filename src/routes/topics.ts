@@ -3,7 +3,7 @@
 
 import { Hono } from "@hono/hono";
 import { validateJson } from "@p2b/hono-core";
-import { CreateManagedTopicSchema } from "../schemas/schemas.ts";
+import { CreateManagedTopicSchema, type CreateManagedTopicInput } from "../schemas/schemas.ts";
 import type { OpenBrainDatabaseManager } from "../db/openBrainDatabaseManager.ts";
 import type {
   ManagedTopic,
@@ -116,7 +116,7 @@ export function createTopicRoutes(db: OpenBrainDatabaseManager): Hono {
   /** POST /topics — add a managed topic manually */
   router.post("/", validateJson(CreateManagedTopicSchema), (c) => {
     try {
-      const data = c.req.valid("json" as never);
+      const data = c.req.valid("json" as never) as CreateManagedTopicInput;
       const topic = db.addManagedTopic(data.name, data.life_area);
 
       return c.json<ApiResponse<ManagedTopic>>({

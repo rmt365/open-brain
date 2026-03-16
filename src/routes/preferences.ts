@@ -6,6 +6,8 @@ import { validateJson } from "@p2b/hono-core";
 import {
   CreatePreferenceSchema,
   UpdatePreferenceSchema,
+  type CreatePreferenceInput,
+  type UpdatePreferenceInput,
 } from "../schemas/schemas.ts";
 import type { OpenBrainDatabaseManager } from "../db/openBrainDatabaseManager.ts";
 import type {
@@ -47,7 +49,7 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager): Hono {
   /** POST /preferences — Create a new preference */
   router.post("/", validateJson(CreatePreferenceSchema), (c) => {
     try {
-      const data = c.req.valid("json" as never);
+      const data = c.req.valid("json" as never) as CreatePreferenceInput;
       const preference = db.createPreference(data);
       return c.json<ApiResponse<TastePreference>>({
         success: true,
@@ -102,7 +104,7 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager): Hono {
   router.put("/:id", validateJson(UpdatePreferenceSchema), (c) => {
     try {
       const id = c.req.param("id");
-      const data = c.req.valid("json" as never);
+      const data = c.req.valid("json" as never) as UpdatePreferenceInput;
       const preference = db.updatePreference(id, data);
       if (!preference) {
         return c.json<ApiResponse>({ success: false, error: "Preference not found" }, 404);
