@@ -133,7 +133,7 @@ export async function getThought(id: string): Promise<ApiResponse<Thought>> {
 }
 
 export async function getStats(): Promise<ApiResponse<BrainStats>> {
-  return request<ApiResponse<BrainStats>>("/stats");
+  return request<ApiResponse<BrainStats>>("/thoughts/stats");
 }
 
 export async function getTopics(
