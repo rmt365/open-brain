@@ -381,6 +381,27 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     return this.getThought(id);
   }
 
+  /**
+   * Update a thought after URL ingestion.
+   * Sets text, thought_type, source_url, and metadata in a single update.
+   * Used by auto URL detection — not part of the general update API.
+   */
+  updateThoughtForUrlIngest(
+    id: string,
+    data: {
+      text: string;
+      thought_type: string;
+      source_url: string;
+      metadata: Record<string, unknown>;
+    }
+  ): void {
+    this.db.prepare(
+      `UPDATE thoughts
+       SET text = ?, thought_type = ?, source_url = ?, metadata = ?
+       WHERE id = ?`
+    ).run(data.text, data.thought_type, data.source_url, JSON.stringify(data.metadata), id);
+  }
+
   /** Soft-delete (sets status to 'deleted'). */
   deleteThought(id: string): boolean {
     const count = this.db.prepare(
