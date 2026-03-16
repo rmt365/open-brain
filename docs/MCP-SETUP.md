@@ -1,6 +1,6 @@
-# Open Brain MCP Setup Guide
+# Open Brain — AI Tool Integration Guide
 
-Connect your Open Brain instance to AI tools so they can capture thoughts, search your brain, and use your preferences as context.
+Connect your Open Brain instance to AI tools so they can capture thoughts, search your brain, and use your preferences as context. Covers MCP-compatible tools (Claude, Cursor, Windsurf, etc.) and ChatGPT via Custom GPT Actions.
 
 ## What You Need
 
@@ -190,6 +190,38 @@ Your preferences are automatically loaded into the AI's context when it connects
 | `remove_preference` | Delete a preference |
 | `ingest_url` | Save and index a web page |
 | `surface_forgotten` | Resurface old thoughts you may have forgotten |
+
+---
+
+## ChatGPT (Custom GPT with Actions)
+
+ChatGPT doesn't support MCP, but you can connect via a Custom GPT using OpenAI's Actions feature with the REST API directly.
+
+### Setup
+
+1. Go to https://chatgpt.com/gpts/editor
+2. **Name**: "My Brain" (or whatever you like)
+3. **Instructions**:
+   > You have access to the user's personal knowledge brain. Use it to capture thoughts, search past ideas, and respect recorded preferences. Before generating creative content, check taste preferences with getTasteProfile. When the user expresses a clear preference or decision, record it with addPreference.
+4. Go to **Configure** → **Actions** → **Create new action**
+5. Paste the contents of `docs/openapi-chatgpt.yaml` into the schema editor (the full OpenAPI spec is in this repo)
+6. **Authentication**: Select **API Key**, type **Bearer**, enter your `OPEN_BRAIN_API_KEY`
+7. **Privacy policy**: leave blank for personal use
+8. Save and publish (private)
+
+### What It Gets
+
+The Custom GPT gets the same capabilities as MCP clients:
+- Capture thoughts, search brain, browse recent, surface forgotten
+- Ingest URLs
+- Get and manage taste preferences
+- View brain stats
+
+### Limitations vs MCP
+
+- No automatic preference injection — the GPT must call `getTasteProfile` explicitly (the instructions prompt it to do so)
+- No persistent sessions — each conversation starts fresh
+- Rate limits apply per OpenAI's Custom GPT action limits
 
 ---
 
