@@ -45,11 +45,8 @@ export async function extractUrlContent(url: string): Promise<ExtractedContent |
       text = rawBody;
     }
 
-    // Clean up whitespace
-    text = text
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/[ \t]+/g, " ")
-      .trim();
+    // Aggressive whitespace cleanup
+    text = cleanWhitespace(text, title);
 
     if (text.length === 0) {
       console.error(`[OpenBrain:Extract] No content extracted from ${url}`);
@@ -79,19 +76,26 @@ function extractTitle(html: string): string | null {
 
 /** Strip HTML tags and decode basic entities, keeping text content. */
 function stripHtml(html: string): string {
-  // Remove script, style, nav, footer, header elements entirely
+  // Remove entire elements that never contain useful content
   let text = html
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<nav[\s\S]*?<\/nav>/gi, "")
     .replace(/<footer[\s\S]*?<\/footer>/gi, "")
-    .replace(/<header[\s\S]*?<\/header>/gi, "");
+    .replace(/<header[\s\S]*?<\/header>/gi, "")
+    .replace(/<aside[\s\S]*?<\/aside>/gi, "")
+    .replace(/<form[\s\S]*?<\/form>/gi, "")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "");
 
   // Convert block elements to newlines
   text = text
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/?(p|div|h[1-6]|li|tr|blockquote|article|section)[^>]*>/gi, "\n")
-    .replace(/<\/?(ul|ol|table|tbody|thead)[^>]*>/gi, "\n");
+    .replace(/<\/?(p|div|h[1-6]|li|tr|blockquote|article|section|figcaption|figure|main)[^>]*>/gi, "\n")
+    .replace(/<\/?(ul|ol|table|tbody|thead|tfoot)[^>]*>/gi, "\n");
 
   // Strip remaining tags
   text = text.replace(/<[^>]+>/g, "");
@@ -108,4 +112,45 @@ function stripHtml(html: string): string {
     .replace(/&[a-zA-Z]+;/g, " "); // catch-all for remaining entities
 
   return text;
+}
+
+/**
+ * Clean extracted text: collapse whitespace, remove junk lines,
+ * deduplicate the title from the body.
+ */
+function cleanWhitespace(text: string, title: string): string {
+  // Normalize line endings
+  let cleaned = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Trim each line and filter out empty/very short lines (likely nav fragments)
+  const lines = cleaned
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter((line) => line.length > 0);
+
+  // Remove lines that are just the title repeated (common in page headers)
+  const titleNorm = title.toLowerCase().trim();
+  const dedupedLines = lines.filter((line, i) => {
+    // Allow the title to appear once (skip the first occurrence only after the first few lines)
+    if (i < 5 && line.toLowerCase().trim() === titleNorm) return false;
+    return true;
+  });
+
+  // Rejoin and collapse multiple blank lines
+  cleaned = dedupedLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+
+  // Remove very short fragment lines at the start (nav remnants like "Home", "About")
+  const finalLines = cleaned.split("\n");
+  let contentStart = 0;
+  for (let i = 0; i < Math.min(finalLines.length, 10); i++) {
+    if (finalLines[i].length > 30) break;
+    contentStart = i + 1;
+  }
+
+  // Only skip if we found real content after the fragments
+  if (contentStart > 0 && contentStart < finalLines.length) {
+    cleaned = finalLines.slice(contentStart).join("\n").trim();
+  }
+
+  return cleaned;
 }
