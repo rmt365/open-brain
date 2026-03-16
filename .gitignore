@@ -21,6 +21,7 @@ mcp/dist/
 Thumbs.db
 
 # Docker
+docker-compose.override.yml
 docker-compose.worktree.yml
 
 # IDE
@@ -36,3 +37,4 @@ ollama/
 
 # Lock files from vendored packages (use root deno.lock)
 packages/*/deno.lock
+.superpowers/
