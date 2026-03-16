@@ -159,6 +159,50 @@ export async function getPreferencesBlock(
 }
 
 // ============================================================
+// PREFERENCES
+// ============================================================
+
+interface TastePreference {
+  id: number;
+  preference_name: string;
+  domain: string;
+  reject: string;
+  want: string;
+  constraint_type: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listPreferences(
+  domain?: string,
+): Promise<ApiResponse<TastePreference[]>> {
+  const searchParams = new URLSearchParams();
+  if (domain) searchParams.set("domain", domain);
+
+  const qs = searchParams.toString();
+  return request<ApiResponse<TastePreference[]>>(`/preferences${qs ? `?${qs}` : ""}`);
+}
+
+export async function createPreference(data: {
+  preference_name: string;
+  domain?: string;
+  reject: string;
+  want: string;
+  constraint_type?: string;
+}): Promise<ApiResponse<TastePreference>> {
+  return request<ApiResponse<TastePreference>>("/preferences", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deletePreference(id: number): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>(`/preferences/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ============================================================
 // TOPIC MANAGEMENT
 // ============================================================
 

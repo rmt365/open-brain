@@ -17,6 +17,11 @@ import {
   AddVendorTool,
   ListVendorsTool,
 } from "./household-tools.js";
+import {
+  AddPreferenceTool,
+  ListPreferencesTool,
+  RemovePreferenceTool,
+} from "./preference-tools.js";
 
 const AllTools = [
   SearchBrainTool,
@@ -29,6 +34,9 @@ const AllTools = [
   IngestUrlTool,
   SurfaceForgottenTool,
   GetTasteProfileTool,
+  AddPreferenceTool,
+  ListPreferencesTool,
+  RemovePreferenceTool,
   AddHouseholdItemTool,
   SearchHouseholdItemsTool,
   GetHouseholdItemTool,
