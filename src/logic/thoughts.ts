@@ -233,7 +233,11 @@ export class ThoughtManager {
   // SEARCH FLOW
   // ============================================================
 
-  /** Semantic search with text LIKE fallback when embedding is unavailable. */
+  /**
+   * Hybrid search: runs semantic (vector) and text (keyword) search in parallel,
+   * merges results, and boosts exact keyword matches. Falls back to text-only
+   * when embeddings are unavailable.
+   */
   async search(
     query: string,
     thoughtType?: ThoughtType,
@@ -245,12 +249,56 @@ export class ThoughtManager {
       this.config.embedding.model
     );
 
-    if (queryEmbedding) {
-      return this.semanticSearchWithChunks(queryEmbedding, thoughtType, limit);
+    if (!queryEmbedding) {
+      console.log("[OpenBrain:Search] Embedding unavailable, text search only");
+      return this.textSearch(query, thoughtType, limit);
     }
 
-    console.log("[OpenBrain:Search] Embedding unavailable, falling back to text search");
-    return this.textSearch(query, thoughtType, limit);
+    // Run both searches
+    const semanticResults = this.semanticSearchWithChunks(queryEmbedding, thoughtType, limit);
+    const textResults = this.textSearch(query, thoughtType, limit);
+
+    // Merge: use a map keyed by thought ID, combine scores
+    const merged = new Map<string, { thought: Thought; score: number; sources: string[] }>();
+
+    // Semantic results: similarity is 0-1
+    for (const r of semanticResults) {
+      merged.set(r.thought.id, {
+        thought: r.thought,
+        score: r.similarity,
+        sources: ["semantic"],
+      });
+    }
+
+    // Text results: boost keyword matches, especially exact matches
+    for (const r of textResults) {
+      const existing = merged.get(r.thought.id);
+      if (existing) {
+        // Found in both — boost score significantly
+        existing.score = Math.min(existing.score + r.similarity * 0.5, 1.0);
+        existing.sources.push("text");
+      } else {
+        // Text-only match — use text similarity with slight penalty
+        merged.set(r.thought.id, {
+          thought: r.thought,
+          score: r.similarity * 0.8,
+          sources: ["text"],
+        });
+      }
+    }
+
+    // Sort by combined score, take top N
+    const sorted = Array.from(merged.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+
+    console.log(`[OpenBrain:Search] Hybrid search: ${semanticResults.length} semantic + ${textResults.length} text → ${sorted.length} merged`);
+
+    return sorted.map((s, i) => ({
+      thought: s.thought,
+      similarity: s.score,
+      rank: i + 1,
+    }));
   }
 
   private textSearch(
