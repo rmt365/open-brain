@@ -18,11 +18,13 @@ class OpenBrainChat extends LitElement {
     online: { type: Boolean, state: true },
     user: { type: String, state: true },
     _showSettings: { type: Boolean, state: true },
+    _showApiKeyDialog: { type: Boolean, state: true },
     _needsApiKey: { type: Boolean, state: true },
     _showPreferences: { type: Boolean, state: true },
     _preferences: { type: Array, state: true },
     _prefLoading: { type: Boolean, state: true },
     _prefEditing: { type: String, state: true },
+    _prefFormData: { type: Object, state: true },
   };
 
   static styles = css`
@@ -667,6 +669,7 @@ class OpenBrainChat extends LitElement {
     .pref-form textarea,
     .pref-form select {
       width: 100%;
+      box-sizing: border-box;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--input-border);
       border-radius: 8px;
@@ -730,7 +733,7 @@ class OpenBrainChat extends LitElement {
     this._preferences = [];
     this._prefLoading = false;
     this._prefEditing = null;
-    this._showSettingsMenu = false;
+    this._showSettings = false;
     this._prefFormData = null;
   }
 
@@ -1124,7 +1127,7 @@ class OpenBrainChat extends LitElement {
   }
 
   _openPreferences() {
-    this._showSettingsMenu = false;
+    this._showSettings = false;
     this._showPreferences = true;
     this._prefFormData = null;
     this._prefEditing = null;
@@ -1404,12 +1407,12 @@ class OpenBrainChat extends LitElement {
             ${this.online ? 'Online' : 'Offline'}
           </div>
           <div style="position: relative;">
-            <button class="settings-btn" @click=${() => { this._showSettingsMenu = !this._showSettingsMenu; }} title="Settings">
+            <button class="settings-btn" @click=${() => { this._showSettings = !this._showSettings; }} title="Settings">
               &#9881;
             </button>
-            ${this._showSettingsMenu ? html`
+            ${this._showSettings ? html`
               <div class="settings-menu">
-                <button @click=${() => { this._showSettingsMenu = false; this._showApiKeyDialog = true; }}>API Key</button>
+                <button @click=${() => { this._showSettings = false; this._showApiKeyDialog = true; }}>API Key</button>
                 <button @click=${this._openPreferences}>Preferences</button>
               </div>
             ` : ''}
