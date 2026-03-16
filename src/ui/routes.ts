@@ -57,7 +57,10 @@ export function createUIRoutes(basePath: string = ""): Hono {
 </head>
 <body>
   <open-brain-setup></open-brain-setup>
-  <script>window.__BASE_PATH = '${basePath}';</script>
+  <script>
+    window.__BASE_PATH = '${basePath}';
+    window.__MCP_URL_TOKEN = '${Deno.env.get("MCP_URL_TOKEN") || ""}';
+  </script>
   <script type="module" src="${basePath}/ui/static/js/components/open-brain-setup.js"></script>
 </body>
 </html>`;

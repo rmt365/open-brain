@@ -185,6 +185,10 @@ class OpenBrainSetup extends LitElement {
     return window.location.origin;
   }
 
+  _getUrlToken() {
+    return window.__MCP_URL_TOKEN || '';
+  }
+
   async _copy(id, text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -447,6 +451,17 @@ security:
             </button>Bearer Token: ${this._apiKey}</div>
           <p style="margin-top: 8px;">5. Save and publish (private)</p>
         </div>
+
+        ${this._getUrlToken() ? html`<div class="section">
+          <h3>Claude.ai (Web)</h3>
+          <p>Claude.ai supports MCP integrations. Add as a connector using this URL (no additional auth needed — the token is in the URL):</p>
+          <div class="code-block">
+            <button class="copy-btn ${this._copied === 'claude-ai' ? 'copied' : ''}"
+              @click=${() => this._copy('claude-ai', `${url}/connect/${this._getUrlToken()}`)}>
+              ${this._copied === 'claude-ai' ? 'Copied' : 'Copy'}
+            </button>${url}/connect/${this._getUrlToken()}</div>
+          <p style="margin-top: 8px; color: var(--text-muted); font-size: 12px;">Note: This URL contains an embedded auth token. Treat it like a password — don't share it publicly.</p>
+        </div>` : ''}
 
         `}
       </div>

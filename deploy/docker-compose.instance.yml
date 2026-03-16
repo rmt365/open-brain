@@ -22,6 +22,7 @@ services:
       - AI_MODEL=${AI_MODEL:-claude-haiku-4-5-20251001}
       - OPEN_BRAIN_API_KEY=${OPEN_BRAIN_API_KEY}
       - SERVICE_NAME=${INSTANCE_NAME}
+      - MCP_URL_TOKEN=${MCP_URL_TOKEN}
       - ENABLE_LITESTREAM=${ENABLE_LITESTREAM:-true}
       - ENVIRONMENT=production
       - WASABI_ENDPOINT=${WASABI_ENDPOINT:-https://s3.wasabisys.com}
@@ -70,11 +71,22 @@ services:
       start_period: 30s
     labels:
       - "traefik.enable=true"
+      # MCP route with basic auth (for Claude Code, Cursor, etc.)
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.rule=Host(`${SUBDOMAIN}.${DOMAIN_BASE}`) && PathPrefix(`/mcp`)"
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.entrypoints=websecure"
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.tls.certresolver=letsencrypt"
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.middlewares=${INSTANCE_NAME}-mcp-auth"
       - "traefik.http.middlewares.${INSTANCE_NAME}-mcp-auth.basicauth.users=${MCP_AUTH_USERS}"
+      # Token-based MCP route (for Claude.ai and OAuth-only clients)
+      # URL: /connect/{token} → rewrites to /mcp on backend, no auth middleware
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp-token.rule=Host(`${SUBDOMAIN}.${DOMAIN_BASE}`) && PathPrefix(`/connect/${MCP_URL_TOKEN}`)"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp-token.entrypoints=websecure"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp-token.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp-token.middlewares=${INSTANCE_NAME}-mcp-rewrite"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp-token.priority=200"
+      - "traefik.http.middlewares.${INSTANCE_NAME}-mcp-rewrite.replacepathregex.regex=^/connect/${MCP_URL_TOKEN}(.*)"
+      - "traefik.http.middlewares.${INSTANCE_NAME}-mcp-rewrite.replacepathregex.replacement=/mcp$$1"
+      # Shared service
       - "traefik.http.services.${INSTANCE_NAME}-mcp.loadbalancer.server.port=3013"
       - "traefik.docker.network=todo-pile_web"
 
