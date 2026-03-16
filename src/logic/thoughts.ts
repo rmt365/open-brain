@@ -15,6 +15,7 @@ import { generateEmbedding } from "./embeddings.ts";
 import { classifyThought } from "./classifier.ts";
 import { extractUrlContent, type ExtractedContent } from "./extractor.ts";
 import { chunkText, needsChunking } from "./chunker.ts";
+import { extractUrls, isUrlOnlyMessage } from "./url-detection.ts";
 
 /** Process items in chunks with bounded concurrency */
 export async function processInChunks<T>(
@@ -75,37 +76,157 @@ export class ThoughtManager {
 
     console.log(`[OpenBrain:Capture] Stored thought ${thought.id} (${text.length} chars)`);
 
+    // Detect URLs (skip for reference thoughts to prevent recursion with ingestUrl)
+    const detectedUrls = thoughtType === "reference" ? [] : extractUrls(text);
+    const isUrlOnly = detectedUrls.length > 0 && isUrlOnlyMessage(text, detectedUrls);
+
     // Fetch managed topics for classification prompt
     const managedTopics = this.db.getManagedTopicNames();
 
-    // Embed and classify concurrently — they're independent
-    const [embResult, classResult] = await Promise.allSettled([
-      generateEmbedding(text, this.config.embedding.ollamaUrl, this.config.embedding.model),
-      classifyThought(text, this.config.llm.provider, this.config.llm.model, managedTopics),
-    ]);
-
-    if (embResult.status === "fulfilled" && embResult.value) {
-      this.db.storeEmbedding(thought.id, embResult.value);
-      console.log(`[OpenBrain:Capture] Embedded thought ${thought.id}`);
+    if (isUrlOnly) {
+      // URL-ONLY: skip initial embed/classify, fetch content, smart-replace, then embed+classify
+      await this.handleUrlOnlyCapture(thought, detectedUrls, managedTopics);
     } else {
-      console.warn(`[OpenBrain:Capture] Embedding skipped for ${thought.id}`);
-    }
+      // NORMAL or URL-MENTIONED: embed and classify concurrently
+      const asyncWork: Promise<unknown>[] = [
+        generateEmbedding(text, this.config.embedding.ollamaUrl, this.config.embedding.model)
+          .then((embedding) => {
+            if (embedding) {
+              this.db.storeEmbedding(thought.id, embedding);
+              console.log(`[OpenBrain:Capture] Embedded thought ${thought.id}`);
+            } else {
+              console.warn(`[OpenBrain:Capture] Embedding skipped for ${thought.id}`);
+            }
+          }),
+        classifyThought(text, this.config.llm.provider, this.config.llm.model, managedTopics)
+          .then((classification) => {
+            if (classification) {
+              this.db.updateClassification(thought.id, classification);
+              console.log(`[OpenBrain:Capture] Classified thought ${thought.id} as ${classification.thought_type}, area=${classification.life_area}`);
+              for (const suggested of classification.suggested_topics) {
+                this.db.suggestTopic(suggested, thought.id);
+              }
+            } else {
+              console.warn(`[OpenBrain:Capture] Classification skipped for ${thought.id}`);
+            }
+          }),
+      ];
 
-    if (classResult.status === "fulfilled" && classResult.value) {
-      const c = classResult.value;
-      this.db.updateClassification(thought.id, c);
-      console.log(`[OpenBrain:Capture] Classified thought ${thought.id} as ${c.thought_type}, area=${c.life_area}`);
+      // URL-MENTIONED: also set source_url and spawn ingestion for each URL
+      if (detectedUrls.length > 0) {
+        // Set source_url to first detected URL
+        this.db.updateThoughtForUrlIngest(thought.id, {
+          text: thought.text,
+          thought_type: thought.thought_type,
+          source_url: detectedUrls[0],
+          metadata: thought.metadata || {},
+        });
 
-      // Store any suggested topics
-      for (const suggested of c.suggested_topics) {
-        this.db.suggestTopic(suggested, thought.id);
-        console.log(`[OpenBrain:Capture] Topic suggestion: "${suggested}" from thought ${thought.id}`);
+        // Ingest each URL as a separate reference thought
+        for (const url of detectedUrls) {
+          asyncWork.push(
+            this.ingestUrl(url, lifeArea).catch((err) => {
+              console.warn(`[OpenBrain:Capture] URL ingestion failed for ${url}: ${err}`);
+            })
+          );
+        }
       }
-    } else {
-      console.warn(`[OpenBrain:Capture] Classification skipped for ${thought.id}`);
+
+      await Promise.allSettled(asyncWork);
     }
 
     return this.db.getThought(thought.id) || thought;
+  }
+
+  /**
+   * Handle URL-only messages: fetch URL content, replace thought text,
+   * then embed and classify using the fetched content.
+   */
+  private async handleUrlOnlyCapture(
+    thought: Thought,
+    urls: string[],
+    managedTopics: string[]
+  ): Promise<void> {
+    const primaryUrl = urls[0];
+
+    // Fetch and chunk the primary URL
+    const content = await this.ingestUrlContent(thought.id, primaryUrl);
+
+    if (content) {
+      // Smart replace: update thought with fetched content
+      const preview = content.text.length > 500
+        ? content.text.substring(0, 500) + "..."
+        : content.text;
+      const newText = `${content.title}\n\n${preview}`;
+
+      this.db.updateThoughtForUrlIngest(thought.id, {
+        text: newText,
+        thought_type: "reference",
+        source_url: primaryUrl,
+        metadata: {
+          ...(thought.metadata || {}),
+          url: content.url,
+          title: content.title,
+          fetchedAt: content.fetchedAt,
+        },
+      });
+
+      console.log(`[OpenBrain:Capture] Smart-replaced thought ${thought.id} with content from ${primaryUrl}`);
+
+      // Re-embed and re-classify with the fetched content
+      const [embResult, classResult] = await Promise.allSettled([
+        generateEmbedding(newText, this.config.embedding.ollamaUrl, this.config.embedding.model),
+        classifyThought(newText, this.config.llm.provider, this.config.llm.model, managedTopics),
+      ]);
+
+      if (embResult.status === "fulfilled" && embResult.value) {
+        this.db.storeEmbedding(thought.id, embResult.value);
+        console.log(`[OpenBrain:Capture] Re-embedded thought ${thought.id} with fetched content`);
+      }
+
+      if (classResult.status === "fulfilled" && classResult.value) {
+        this.db.updateClassification(thought.id, classResult.value);
+        console.log(`[OpenBrain:Capture] Classified ingested thought ${thought.id}`);
+        for (const suggested of classResult.value.suggested_topics) {
+          this.db.suggestTopic(suggested, thought.id);
+        }
+      }
+    } else {
+      // Fetch failed — fall back to normal embed/classify on original text
+      console.warn(`[OpenBrain:Capture] URL fetch failed for ${primaryUrl}, falling back to normal capture`);
+
+      // Still set source_url so we know a URL was intended
+      this.db.updateThoughtForUrlIngest(thought.id, {
+        text: thought.text,
+        thought_type: thought.thought_type,
+        source_url: primaryUrl,
+        metadata: thought.metadata || {},
+      });
+
+      const [embResult, classResult] = await Promise.allSettled([
+        generateEmbedding(thought.text, this.config.embedding.ollamaUrl, this.config.embedding.model),
+        classifyThought(thought.text, this.config.llm.provider, this.config.llm.model, managedTopics),
+      ]);
+
+      if (embResult.status === "fulfilled" && embResult.value) {
+        this.db.storeEmbedding(thought.id, embResult.value);
+      }
+      if (classResult.status === "fulfilled" && classResult.value) {
+        this.db.updateClassification(thought.id, classResult.value);
+        for (const suggested of classResult.value.suggested_topics) {
+          this.db.suggestTopic(suggested, thought.id);
+        }
+      }
+    }
+
+    // Ingest remaining URLs (if multi-URL message) as separate references
+    for (const url of urls.slice(1)) {
+      try {
+        await this.ingestUrl(url);
+      } catch (err) {
+        console.warn(`[OpenBrain:Capture] Secondary URL ingestion failed for ${url}: ${err}`);
+      }
+    }
   }
 
   // ============================================================
