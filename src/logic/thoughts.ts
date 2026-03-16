@@ -13,7 +13,7 @@ import type {
 } from "../types/index.ts";
 import { generateEmbedding } from "./embeddings.ts";
 import { classifyThought } from "./classifier.ts";
-import { extractUrlContent } from "./extractor.ts";
+import { extractUrlContent, type ExtractedContent } from "./extractor.ts";
 import { chunkText, needsChunking } from "./chunker.ts";
 
 /** Process items in chunks with bounded concurrency */
@@ -323,11 +323,68 @@ export class ThoughtManager {
   // ============================================================
 
   /**
+   * Fetch URL content only. Returns null on failure.
+   */
+  async fetchUrlContent(url: string): Promise<ExtractedContent | null> {
+    const content = await extractUrlContent(url);
+    if (!content) {
+      console.warn(`[OpenBrain:IngestContent] Failed to fetch ${url}`);
+      return null;
+    }
+    return content;
+  }
+
+  /**
+   * Chunk and embed already-fetched content for a thought.
+   */
+  async chunkAndEmbed(thoughtId: string, content: ExtractedContent): Promise<void> {
+    if (needsChunking(content.text)) {
+      const chunks = chunkText(content.text);
+      console.log(`[OpenBrain:IngestContent] Chunking ${content.text.length} chars into ${chunks.length} chunks`);
+
+      for (const chunk of chunks) {
+        const dbChunk = this.db.createChunk({
+          thoughtId,
+          chunkIndex: chunk.index,
+          text: chunk.text,
+          startOffset: chunk.startOffset,
+          endOffset: chunk.endOffset,
+        });
+
+        const embedding = await generateEmbedding(
+          chunk.text,
+          this.config.embedding.ollamaUrl,
+          this.config.embedding.model
+        );
+        if (embedding) {
+          this.db.storeChunkEmbedding(dbChunk.id, embedding);
+        }
+      }
+
+      console.log(`[OpenBrain:IngestContent] ${content.url} — ${chunks.length} chunks embedded`);
+    } else {
+      console.log(`[OpenBrain:IngestContent] Content short enough, no chunking needed`);
+    }
+  }
+
+  /**
+   * Fetch URL content, chunk it if needed, and create chunk embeddings for a thought.
+   * Returns the extracted content on success, null on failure.
+   * Used by auto URL detection in capture().
+   */
+  async ingestUrlContent(thoughtId: string, url: string): Promise<ExtractedContent | null> {
+    const content = await this.fetchUrlContent(url);
+    if (!content) return null;
+    await this.chunkAndEmbed(thoughtId, content);
+    return content;
+  }
+
+  /**
    * Ingest a URL: fetch content, store as a reference thought, chunk and embed.
    * The thought text stores a summary/title; chunks store the full content for search.
    */
   async ingestUrl(url: string, lifeArea?: LifeArea): Promise<Thought | null> {
-    const content = await extractUrlContent(url);
+    const content = await this.fetchUrlContent(url);
     if (!content) {
       console.error(`[OpenBrain:Ingest] Failed to extract content from ${url}`);
       return null;
@@ -339,7 +396,7 @@ export class ThoughtManager {
       : content.text;
     const thoughtText = `${content.title}\n\n${preview}`;
 
-    // Store as a reference thought with source_url
+    // Store as a reference thought with source_url (capture skips URL detection for "reference" type)
     const thought = await this.capture(
       thoughtText,
       "api",
@@ -350,35 +407,8 @@ export class ThoughtManager {
       url
     );
 
-    // Chunk and embed the full content if it's long
-    if (needsChunking(content.text)) {
-      const chunks = chunkText(content.text);
-      console.log(`[OpenBrain:Ingest] Chunking ${content.text.length} chars into ${chunks.length} chunks`);
-
-      for (const chunk of chunks) {
-        const dbChunk = this.db.createChunk({
-          thoughtId: thought.id,
-          chunkIndex: chunk.index,
-          text: chunk.text,
-          startOffset: chunk.startOffset,
-          endOffset: chunk.endOffset,
-        });
-
-        // Embed each chunk
-        const embedding = await generateEmbedding(
-          chunk.text,
-          this.config.embedding.ollamaUrl,
-          this.config.embedding.model
-        );
-        if (embedding) {
-          this.db.storeChunkEmbedding(dbChunk.id, embedding);
-        }
-      }
-
-      console.log(`[OpenBrain:Ingest] Ingested ${url} — ${chunks.length} chunks embedded`);
-    } else {
-      console.log(`[OpenBrain:Ingest] Content short enough, no chunking needed`);
-    }
+    // Chunk and embed using shared helper (pass already-fetched content)
+    await this.chunkAndEmbed(thought.id, content);
 
     return this.db.getThought(thought.id) || thought;
   }
