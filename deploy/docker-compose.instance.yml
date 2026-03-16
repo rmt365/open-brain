@@ -73,6 +73,8 @@ services:
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.rule=Host(`${SUBDOMAIN}.${DOMAIN_BASE}`) && PathPrefix(`/mcp`)"
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.entrypoints=websecure"
       - "traefik.http.routers.${INSTANCE_NAME}-mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${INSTANCE_NAME}-mcp.middlewares=${INSTANCE_NAME}-mcp-auth"
+      - "traefik.http.middlewares.${INSTANCE_NAME}-mcp-auth.basicauth.users=${MCP_AUTH_USERS}"
       - "traefik.http.services.${INSTANCE_NAME}-mcp.loadbalancer.server.port=3013"
       - "traefik.docker.network=todo-pile_web"
 
