@@ -64,6 +64,40 @@ export function extractUrls(text: string): string[] {
   return urls;
 }
 
+const URL_ONLY_MAX_REMAINDER = 30;
+
+/**
+ * Determine if a message is essentially just a URL (or URLs) with minimal wrapper text.
+ * Strips URLs and common prefixes from the text, then checks if the remainder is short.
+ */
+export function isUrlOnlyMessage(text: string, urls: string[]): boolean {
+  if (urls.length === 0) return false;
+
+  let remainder = text;
+
+  // Strip explicit URLs from text
+  for (const url of urls) {
+    remainder = remainder.replace(url, "");
+  }
+
+  // Also strip bare domain versions (without https://) in case the original text had bare domains
+  for (const url of urls) {
+    const bareDomain = url.replace(/^https?:\/\//, "");
+    remainder = remainder.replace(bareDomain, "");
+  }
+
+  // Strip common prefixes people use when bookmarking
+  remainder = remainder
+    .replace(/^(log|save|bookmark|check out|check|look at|read|watch|see|grab|capture)\b/i, "")
+    .replace(/\bthis\s+url\b/i, "")
+    .replace(/\bthis\s+link\b/i, "")
+    .replace(/\bthis\b/i, "")
+    .replace(/[:;,\-—–]/g, "")
+    .trim();
+
+  return remainder.length <= URL_ONLY_MAX_REMAINDER;
+}
+
 /** Strip trailing closing parens that don't have a matching open paren in the URL path. */
 function balanceParens(url: string): string {
   let result = url;

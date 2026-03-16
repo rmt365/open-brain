@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert";
-import { extractUrls } from "../logic/url-detection.ts";
+import { extractUrls, isUrlOnlyMessage } from "../logic/url-detection.ts";
 
 Deno.test("extractUrls: finds https URL", () => {
   assertEquals(extractUrls("check https://example.com out"), ["https://example.com"]);
@@ -77,4 +77,64 @@ Deno.test("extractUrls: does not match common words as domains", () => {
 Deno.test("extractUrls: finds both explicit and bare URLs", () => {
   const result = extractUrls("see https://a.com and b.com/page");
   assertEquals(result, ["https://a.com", "https://b.com/page"]);
+});
+
+Deno.test("isUrlOnlyMessage: bare URL is URL-only", () => {
+  assertEquals(isUrlOnlyMessage("https://example.com", ["https://example.com"]), true);
+});
+
+Deno.test("isUrlOnlyMessage: bare domain is URL-only", () => {
+  assertEquals(
+    isUrlOnlyMessage("twinflamesstudios.com/path", ["https://twinflamesstudios.com/path"]),
+    true
+  );
+});
+
+Deno.test("isUrlOnlyMessage: 'save URL' is URL-only", () => {
+  assertEquals(isUrlOnlyMessage("save https://example.com", ["https://example.com"]), true);
+});
+
+Deno.test("isUrlOnlyMessage: 'Log this URL:' is URL-only", () => {
+  assertEquals(
+    isUrlOnlyMessage("Log this URL: https://example.com", ["https://example.com"]),
+    true
+  );
+});
+
+Deno.test("isUrlOnlyMessage: 'bookmark this' is URL-only", () => {
+  assertEquals(
+    isUrlOnlyMessage("bookmark this https://example.com", ["https://example.com"]),
+    true
+  );
+});
+
+Deno.test("isUrlOnlyMessage: short context is URL-only", () => {
+  assertEquals(
+    isUrlOnlyMessage("this is interesting https://example.com", ["https://example.com"]),
+    true
+  );
+});
+
+Deno.test("isUrlOnlyMessage: long context is URL-mentioned", () => {
+  assertEquals(
+    isUrlOnlyMessage(
+      "I found this article about machine learning https://example.com",
+      ["https://example.com"]
+    ),
+    false
+  );
+});
+
+Deno.test("isUrlOnlyMessage: thought with URL in the middle is URL-mentioned", () => {
+  assertEquals(
+    isUrlOnlyMessage(
+      "I was reading https://example.com/article and it made me think about pricing",
+      ["https://example.com/article"]
+    ),
+    false
+  );
+});
+
+Deno.test("isUrlOnlyMessage: no URLs returns false", () => {
+  assertEquals(isUrlOnlyMessage("", []), false);
 });
