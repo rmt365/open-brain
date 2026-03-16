@@ -79,6 +79,18 @@ class OpenBrainChat extends LitElement {
       align-items: center;
       gap: 12px;
     }
+    .header-nav-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 18px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .header-nav-link:hover {
+      background: rgba(255,255,255,0.1);
+      color: var(--text-primary);
+    }
 
     .header-status {
       font-size: 12px;
@@ -909,23 +921,39 @@ class OpenBrainChat extends LitElement {
 
   _buildAck(data) {
     let text = 'Got it';
-    const parts = [];
+    const sourceUrl = data.source_url;
+    const isUrlIngested = sourceUrl && data.thought_type === 'reference' && data.metadata?.title;
+    const isUrlMentioned = sourceUrl && !isUrlIngested;
 
-    if (data.auto_type) {
-      parts.push(data.auto_type);
-    }
-
-    if (data.auto_topics && data.auto_topics.length > 0) {
-      const topicsStr = data.auto_topics.join(', ');
-      if (parts.length > 0) {
-        text = `Got it \u2014 tagged as ${parts[0]} about ${topicsStr}`;
+    if (isUrlIngested) {
+      const domain = this._extractDomain(sourceUrl);
+      text = `Fetched: ${data.metadata.title} from ${domain} \u2014 saved as reference, indexed for search`;
+    } else if (isUrlMentioned) {
+      const parts = [];
+      if (data.auto_type) parts.push(data.auto_type);
+      if (data.auto_topics?.length > 0) {
+        const topicsStr = data.auto_topics.join(', ');
+        text = parts.length > 0
+          ? `Got it \u2014 tagged as ${parts[0]} about ${topicsStr}. Also fetching ${sourceUrl} in the background.`
+          : `Got it \u2014 about ${topicsStr}. Also fetching ${sourceUrl} in the background.`;
+      } else if (parts.length > 0) {
+        text = `Got it \u2014 tagged as ${parts[0]}. Also fetching ${sourceUrl} in the background.`;
       } else {
-        text = `Got it \u2014 about ${topicsStr}`;
+        text = `Got it \u2014 captured. Also fetching ${sourceUrl} in the background.`;
       }
-    } else if (parts.length > 0) {
-      text = `Got it \u2014 tagged as ${parts[0]}`;
     } else {
-      text = 'Got it \u2014 captured';
+      const parts = [];
+      if (data.auto_type) parts.push(data.auto_type);
+      if (data.auto_topics?.length > 0) {
+        const topicsStr = data.auto_topics.join(', ');
+        text = parts.length > 0
+          ? `Got it \u2014 tagged as ${parts[0]} about ${topicsStr}`
+          : `Got it \u2014 about ${topicsStr}`;
+      } else if (parts.length > 0) {
+        text = `Got it \u2014 tagged as ${parts[0]}`;
+      } else {
+        text = 'Got it \u2014 captured';
+      }
     }
 
     return {
@@ -935,6 +963,14 @@ class OpenBrainChat extends LitElement {
       autoTopics: data.auto_topics || [],
       timestamp: new Date().toISOString(),
     };
+  }
+
+  _extractDomain(url) {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
   }
 
   _queueOffline(body, userMsg) {
@@ -1362,6 +1398,7 @@ class OpenBrainChat extends LitElement {
         <div class="header-icon">&#129504;</div>
         <span class="header-title">Open Brain</span>
         <div class="header-right">
+          <a href="${BASE_PATH}/ui/browse" class="header-nav-link" title="Browse thoughts">&#128218;</a>
           <div class="header-status">
             <div class="status-dot ${this.online ? '' : 'offline'}"></div>
             ${this.online ? 'Online' : 'Offline'}
