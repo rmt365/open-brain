@@ -12,7 +12,13 @@ Detect URLs in incoming thoughts during `capture()` and automatically trigger UR
 
 ### URL Extraction
 
-Extract URLs from thought text using a regex that matches `http://` and `https://` URLs. The regex should handle common edge cases: URLs with parentheses (e.g., Wikipedia links), trailing punctuation (periods, commas) not included, and query strings/fragments.
+Extract URLs from thought text in two passes:
+
+1. **Explicit URLs:** Match `http://` and `https://` URLs. Handle common edge cases: URLs with parentheses (e.g., Wikipedia links), trailing punctuation (periods, commas) not included, and query strings/fragments.
+
+2. **Bare domains:** Match patterns like `word.tld` or `word.tld/path` where the TLD is from a common set (`com`, `org`, `net`, `io`, `co`, `dev`, `app`, `me`, `info`, `biz`, `co.uk`, `com.au`, etc.). Prepend `https://` before processing. This handles cases where users type URLs without the protocol, e.g., `twinflamesstudios.com/trust-business-audiobooks`.
+
+Bare domain matching runs after explicit URL matching to avoid double-matching URLs that already have a protocol.
 
 ### Message Classification: URL-Only vs URL-Mentioned
 
@@ -20,6 +26,7 @@ Extract URLs from thought text using a regex that matches `http://` and `https:/
 
 Examples:
 - `"https://example.com"` — URL-only (empty remainder)
+- `"twinflamesstudios.com/trust-business-audiobooks"` — URL-only (bare domain, empty remainder)
 - `"save https://example.com"` — URL-only ("save" = 4 chars)
 - `"Log this URL: https://example.com"` — URL-only ("Log this URL:" = 13 chars)
 - `"this is interesting https://example.com"` — URL-only ("this is interesting" = 19 chars)
@@ -136,7 +143,7 @@ Contains:
 
 ## Testing
 
-- Unit tests for `extractUrls()` and `isUrlOnlyMessage()` with various message formats
+- Unit tests for `extractUrls()` and `isUrlOnlyMessage()` with various message formats, including bare domains without protocol
 - Unit test: verify URL-only classification boundary (edge cases around 30-char threshold)
 - Integration test: capture a bare URL, verify it becomes a reference thought with fetched content and re-embedded
 - Integration test: capture a thought mentioning a URL, verify original is preserved and separate reference is created
