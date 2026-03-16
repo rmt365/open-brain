@@ -43,3 +43,38 @@ Deno.test("extractUrls: returns empty for no URLs", () => {
 Deno.test("extractUrls: returns empty for empty string", () => {
   assertEquals(extractUrls(""), []);
 });
+
+Deno.test("extractUrls: finds bare domain with path", () => {
+  assertEquals(
+    extractUrls("check twinflamesstudios.com/trust-business-audiobooks"),
+    ["https://twinflamesstudios.com/trust-business-audiobooks"]
+  );
+});
+
+Deno.test("extractUrls: finds bare domain without path", () => {
+  assertEquals(extractUrls("visit example.com"), ["https://example.com"]);
+});
+
+Deno.test("extractUrls: finds bare .io domain", () => {
+  assertEquals(extractUrls("see deno.io/docs"), ["https://deno.io/docs"]);
+});
+
+Deno.test("extractUrls: finds bare .co.uk domain", () => {
+  assertEquals(extractUrls("check bbc.co.uk/news"), ["https://bbc.co.uk/news"]);
+});
+
+Deno.test("extractUrls: does not double-match explicit URL as bare domain", () => {
+  assertEquals(
+    extractUrls("https://example.com/page"),
+    ["https://example.com/page"]
+  );
+});
+
+Deno.test("extractUrls: does not match common words as domains", () => {
+  assertEquals(extractUrls("I like this.thing a lot"), []);
+});
+
+Deno.test("extractUrls: finds both explicit and bare URLs", () => {
+  const result = extractUrls("see https://a.com and b.com/page");
+  assertEquals(result, ["https://a.com", "https://b.com/page"]);
+});

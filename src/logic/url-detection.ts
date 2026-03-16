@@ -4,21 +4,61 @@
 // Match http:// and https:// URLs. Handles parentheses in paths (Wikipedia-style).
 // Stops before trailing punctuation that's not part of the URL.
 // The final char allows ) so balanced parens like Foo_(bar) are captured; balanceParens() trims unbalanced ones.
-const EXPLICIT_URL_RE = /https?:\/\/[^\s<>\"]+[^\s<>\".,;:!?}\]]/g;
+const EXPLICIT_URL_RE = /https?:\/\/[^\s<>"]+[^\s<>".,;:!?}\]]/g;
+
+// Common TLDs for bare domain detection.
+const COMMON_TLDS = new Set([
+  "com", "org", "net", "io", "co", "dev", "app", "me", "info", "biz",
+  "us", "uk", "ca", "au", "de", "fr", "nl", "se", "no", "fi",
+  "tv", "cc", "xyz", "tech", "ai", "gg", "fm", "so", "to",
+  "studio", "design", "blog", "site", "online", "store", "shop",
+]);
+
+// Two-part TLDs like co.uk, com.au
+const TWO_PART_TLDS = new Set([
+  "co.uk", "com.au", "co.nz", "co.za", "com.br", "co.jp", "co.kr",
+]);
+
+// Match word.tld or word.tld/path (but not things inside explicit URLs)
+const BARE_DOMAIN_RE = /(?<![/:])(?<!\w)([a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.(?:[a-zA-Z]{2,}\.)?[a-zA-Z]{2,}(?:\/[^\s<>"]*[^\s<>".,;:!?)}\\])?)/g;
 
 /**
  * Extract all URLs from text. Returns fully-qualified URLs (bare domains get https:// prepended).
  * Pass 1: explicit http/https URLs.
- * Pass 2: bare domains (added later).
+ * Pass 2: bare domains.
  */
 export function extractUrls(text: string): string[] {
   const urls: string[] = [];
+  const matchedRanges: Array<[number, number]> = [];
 
   // Pass 1: explicit URLs
-  const explicitMatches = text.match(EXPLICIT_URL_RE) || [];
-  for (const match of explicitMatches) {
-    // Balance parentheses: if URL has unmatched trailing ), strip it
-    urls.push(balanceParens(match));
+  for (const match of text.matchAll(EXPLICIT_URL_RE)) {
+    const url = balanceParens(match[0]);
+    urls.push(url);
+    matchedRanges.push([match.index!, match.index! + match[0].length]);
+  }
+
+  // Pass 2: bare domains — skip ranges already matched by Pass 1
+  for (const match of text.matchAll(BARE_DOMAIN_RE)) {
+    const start = match.index!;
+    const end = start + match[0].length;
+
+    // Skip if this overlaps with an explicit URL match
+    const overlaps = matchedRanges.some(
+      ([rStart, rEnd]) => start >= rStart && start < rEnd
+    );
+    if (overlaps) continue;
+
+    // Validate the TLD
+    const domain = match[0].split("/")[0];
+    const parts = domain.split(".");
+    const twoPartTld = parts.length >= 3 ? `${parts[parts.length - 2]}.${parts[parts.length - 1]}` : "";
+    const singleTld = parts[parts.length - 1];
+
+    if (TWO_PART_TLDS.has(twoPartTld) || COMMON_TLDS.has(singleTld)) {
+      urls.push(`https://${balanceParens(match[0])}`);
+      matchedRanges.push([start, end]);
+    }
   }
 
   return urls;
