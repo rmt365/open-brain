@@ -1,12 +1,15 @@
 FROM denoland/deno:latest
 
-# Install basic dependencies
+# Install basic dependencies + Litestream
 RUN apt-get update && apt-get install -y \
     sqlite3 \
     curl \
     unzip \
     libblas3 liblapack3 libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -sSL https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.deb -o /tmp/litestream.deb \
+    && dpkg -i /tmp/litestream.deb \
+    && rm /tmp/litestream.deb
 
 # Create extensions directory
 RUN mkdir -p /usr/local/lib/sqlite3/extensions
@@ -40,6 +43,10 @@ RUN mkdir -p /root/.cache/deno/plug/https/github.com/denodrivers/sqlite3/release
     curl -sSL -o /root/.cache/deno/plug/https/github.com/denodrivers/sqlite3/releases/download/0.12.0/libsqlite3.so \
     https://github.com/denodrivers/sqlite3/releases/download/0.12.0/libsqlite3.so
 
+# Copy entrypoint
+COPY docker/brain-entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 3012
 
-CMD ["deno", "run", "--config=deno.json", "--allow-net", "--allow-read", "--allow-write", "--allow-env", "--allow-ffi", "src/main.ts"]
+CMD ["/app/entrypoint.sh"]
