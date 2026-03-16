@@ -37,7 +37,7 @@ export function readRawConfig(): RawConfig {
     anthropicApiKey: Deno.env.get("ANTHROPIC_API_KEY") || "",
     ollamaUrl,
     aiModel: Deno.env.get("AI_MODEL") || "claude-haiku-4-5-20251001",
-    embeddingModel: Deno.env.get("EMBEDDING_MODEL") || "mxbai-embed-large",
+    embeddingModel: Deno.env.get("EMBEDDING_MODEL") || "all-minilm",
     basePath: Deno.env.get("BASE_PATH") || "",
     apiKey: Deno.env.get("OPEN_BRAIN_API_KEY") || null,
   };

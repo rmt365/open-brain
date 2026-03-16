@@ -376,7 +376,7 @@ Deno.test("config: returns defaults when env vars not set", () => {
     assertEquals(config.anthropicApiKey, "");
     assertEquals(config.ollamaUrl, "http://ollama:11434");
     assertEquals(config.aiModel, "claude-haiku-4-5-20251001");
-    assertEquals(config.embeddingModel, "mxbai-embed-large");
+    assertEquals(config.embeddingModel, "all-minilm");
     assertEquals(config.basePath, "");
     assertEquals(config.apiKey, null);
   } finally {

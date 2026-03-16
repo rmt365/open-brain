@@ -11,7 +11,7 @@
 export async function generateEmbedding(
   text: string,
   ollamaUrl: string,
-  model: string = "mxbai-embed-large"
+  model: string = "all-minilm"
 ): Promise<Float32Array | null> {
   try {
     const url = `${ollamaUrl}/api/embed`;

@@ -70,16 +70,28 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   // VSS (Vector Similarity Search)
   // ============================================
 
-  /** Create the VSS virtual table. Safe to call multiple times (IF NOT EXISTS). */
-  createVSSTable(): boolean {
+  /** Create the VSS virtual table. Recreates if dimension mismatch detected. */
+  createVSSTable(dimensions: number = 384): boolean {
     try {
-      this.db.exec(
-        `CREATE VIRTUAL TABLE IF NOT EXISTS vss_thoughts USING vss0(embedding(1024))`
-      );
+      // Check if existing VSS table has wrong dimensions — recreate if so
+      if (this.hasVSSTable()) {
+        const row = this.db.prepare(
+          "SELECT sql FROM sqlite_master WHERE type='table' AND name='vss_thoughts'"
+        ).get() as { sql: string } | undefined;
+        if (row?.sql && !row.sql.includes("embedding(" + String(dimensions) + ")")) {
+          console.log("[OpenBrainDB] VSS dimension mismatch, recreating for " + dimensions + "d");
+          this.db.prepare("DROP TABLE vss_thoughts").run();
+          try { this.db.prepare("DROP TABLE vss_thought_chunks").run(); } catch { /* may not exist */ }
+        }
+      }
+
+      this.db.prepare(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS vss_thoughts USING vss0(embedding(" + String(dimensions) + "))"
+      ).run();
       console.log("[OpenBrainDB] VSS table vss_thoughts ready");
       return true;
     } catch (e) {
-      console.warn(`[OpenBrainDB] Could not create VSS table (extensions may not be loaded): ${e}`);
+      console.warn("[OpenBrainDB] Could not create VSS table (extensions may not be loaded): " + e);
       return false;
     }
   }
@@ -439,7 +451,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   storeEmbedding(
     id: string,
     embedding: Float32Array,
-    model: string = "mxbai-embed-large"
+    model: string = "all-minilm"
   ): boolean {
     const embeddingBytes = new Uint8Array(embedding.buffer);
 
@@ -621,7 +633,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     return rows.map((row) => this.parseChunkRow(row));
   }
 
-  storeChunkEmbedding(id: string, embedding: Float32Array, model: string = "mxbai-embed-large"): boolean {
+  storeChunkEmbedding(id: string, embedding: Float32Array, model: string = "all-minilm"): boolean {
     const embeddingBytes = new Uint8Array(embedding.buffer);
     const count = this.db.prepare(`
       UPDATE thought_chunks SET embedding = ?, embedding_model = ? WHERE id = ?
