@@ -286,6 +286,27 @@ class OpenBrainBrowse extends LitElement {
     }
     .load-more button:hover { color: var(--text-primary); }
 
+    .delete-row {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      text-align: right;
+    }
+    .delete-btn {
+      background: none;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .delete-btn:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+    }
+
     .empty-state {
       text-align: center;
       padding: 60px 20px;
@@ -410,6 +431,21 @@ class OpenBrainBrowse extends LitElement {
   _loadMore() {
     this._offset += 50;
     this._loadThoughts(true);
+  }
+
+  async _deleteThought(id) {
+    try {
+      const res = await fetch(`${BASE_PATH}/thoughts/${id}`, {
+        method: 'DELETE',
+        headers: this._getHeaders(),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this._thoughts = this._thoughts.filter(t => t.id !== id);
+      this._total = Math.max(0, this._total - 1);
+      this._expandedId = null;
+    } catch (err) {
+      console.error('[Browse] Delete failed:', err);
+    }
   }
 
   async _updateThought(id, field, value) {
@@ -608,6 +644,10 @@ class OpenBrainBrowse extends LitElement {
               <span class="label">Embedded: </span>
               <span class="value" style="color: ${t.has_embedding ? '#22c55e' : '#64748b'}">${t.has_embedding ? 'yes' : 'no'}</span>
             </div>
+          </div>
+
+          <div class="delete-row">
+            <button class="delete-btn" @click=${(e) => { e.stopPropagation(); this._deleteThought(t.id); }}>Delete</button>
           </div>
         </div>
       </div>
