@@ -40,6 +40,32 @@ export function createUIRoutes(basePath: string = ""): Hono {
     return c.html(html);
   });
 
+  // GET /ui/browse -- renders thought browser page
+  router.get("/browse", (c: Context) => {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1e1b4b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Open Brain — Browse</title>
+  <link rel="manifest" href="${basePath}/ui/manifest.json">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0e1a; height: 100dvh; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <open-brain-browse></open-brain-browse>
+  <script>window.__BASE_PATH = '${basePath}';</script>
+  <script type="module" src="${basePath}/ui/static/js/components/open-brain-browse.js"></script>
+</body>
+</html>`;
+    return c.html(html);
+  });
+
   // GET /ui/manifest.json -- generated dynamically with base path
   router.get("/manifest.json", (_c: Context) => {
     const manifest = {
