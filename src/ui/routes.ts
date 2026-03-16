@@ -40,6 +40,30 @@ export function createUIRoutes(basePath: string = ""): Hono {
     return c.html(html);
   });
 
+  // GET /ui/setup -- renders setup instructions page
+  router.get("/setup", (c: Context) => {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1e1b4b">
+  <title>Open Brain — Setup</title>
+  <link rel="manifest" href="${basePath}/ui/manifest.json">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0e1a; height: 100dvh; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <open-brain-setup></open-brain-setup>
+  <script>window.__BASE_PATH = '${basePath}';</script>
+  <script type="module" src="${basePath}/ui/static/js/components/open-brain-setup.js"></script>
+</body>
+</html>`;
+    return c.html(html);
+  });
+
   // GET /ui/browse -- renders thought browser page
   router.get("/browse", (c: Context) => {
     const html = `<!DOCTYPE html>

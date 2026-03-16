@@ -2,6 +2,7 @@ import { Bot, Context } from "grammy";
 import { handleCapture } from "./handlers/capture.ts";
 import { handleSearch } from "./handlers/search.ts";
 import { handleRecent } from "./handlers/recent.ts";
+import { handleSetup } from "./handlers/setup.ts";
 
 /**
  * Check if a user is allowed to use the bot.
@@ -30,6 +31,7 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
     { command: "start", description: "Welcome message and command list" },
     { command: "search", description: "Semantic search your thoughts" },
     { command: "recent", description: "List your last 10 thoughts" },
+    { command: "setup", description: "Show setup instructions for AI tools" },
   ]);
 
   // Authorization middleware
@@ -61,6 +63,9 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
 
   // /recent command
   bot.command("recent", (ctx) => handleRecent(ctx, openBrainUrl));
+
+  // /setup command
+  bot.command("setup", (ctx) => handleSetup(ctx));
 
   // Default text handler -- capture as thought
   bot.on("message:text", (ctx) => handleCapture(ctx, openBrainUrl));

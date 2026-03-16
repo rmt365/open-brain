@@ -1414,6 +1414,7 @@ class OpenBrainChat extends LitElement {
               <div class="settings-menu">
                 <button @click=${() => { this._showSettings = false; this._showApiKeyDialog = true; }}>API Key</button>
                 <button @click=${this._openPreferences}>Preferences</button>
+                <a href="${BASE_PATH}/ui/setup" style="display:block;padding:8px 16px;color:#e2e8f0;text-decoration:none;font-size:14px;">Setup</a>
               </div>
             ` : ''}
           </div>
