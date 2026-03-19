@@ -17,8 +17,11 @@ export async function handleSetup(ctx: Context): Promise<void> {
 
   const authString = btoa(`brain:${apiKey}`);
   const mcpUrl = `${publicUrl}/mcp`;
+  const mcpUrlToken = Deno.env.get("MCP_URL_TOKEN");
+  const connectUrl = mcpUrlToken ? `${publicUrl}/connect/${mcpUrlToken}` : null;
   const browseUrl = `${publicUrl}/ui/browse`;
   const chatUrl = `${publicUrl}/ui/brain`;
+  const setupUrl = `${publicUrl}/ui/setup`;
 
   const msg =
     `🧠 *Open Brain Setup*\n\n` +
@@ -44,10 +47,14 @@ export async function handleSetup(ctx: Context): Promise<void> {
     `  }\n` +
     `}\n` +
     `\`\`\`\n\n` +
+    (connectUrl
+      ? `*Claude.ai (Web)*\n` +
+        `${connectUrl}\n\n`
+      : '') +
     `*ChatGPT Custom GPT*\n` +
     `Use Actions with the OpenAPI spec and Bearer auth.\n` +
-    `API Key: \`${apiKey}\`\n` +
-    `Spec: see docs/openapi-chatgpt.yaml in the repo`;
+    `API Key: \`${apiKey}\`\n\n` +
+    `Full setup guide: ${setupUrl}`;
 
   await ctx.reply(msg, { parse_mode: "Markdown" });
 }
