@@ -20,7 +20,7 @@ export async function handleAsk(ctx: Context, openBrainUrl: string): Promise<voi
       return;
     }
 
-    await ctx.reply(response.data.answer);
+    await ctx.reply(response.data.answer, { parse_mode: "Markdown" });
   } catch (error) {
     console.error("Ask failed:", error);
     await ctx.reply("Failed to query brain. Please try again.");

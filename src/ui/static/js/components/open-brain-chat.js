@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { unsafeHTML } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -181,6 +182,34 @@ class OpenBrainChat extends LitElement {
       background: var(--system-bubble);
       color: var(--text-secondary);
       border-bottom-left-radius: 4px;
+    }
+
+    .message.system p {
+      margin: 0 0 8px 0;
+    }
+
+    .message.system p:last-child {
+      margin-bottom: 0;
+    }
+
+    .message.system ul, .message.system ol {
+      margin: 4px 0 8px 0;
+      padding-left: 20px;
+    }
+
+    .message.system li {
+      margin-bottom: 2px;
+    }
+
+    .message.system strong {
+      color: var(--text-primary);
+    }
+
+    .message.system code {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 13px;
     }
 
     .message.system .tag {
@@ -1407,6 +1436,61 @@ class OpenBrainChat extends LitElement {
     `;
   }
 
+  /** Simple markdown to HTML for LLM responses */
+  _md(text) {
+    let h = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Bold
+    h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Inline code
+    h = h.replace(/`(.+?)`/g, '<code>$1</code>');
+
+    // Convert lines to paragraphs and lists
+    const lines = h.split('\n');
+    const out = [];
+    let inList = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const listMatch = trimmed.match(/^[-*]\s+(.*)/);
+
+      if (listMatch) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${listMatch[1]}</li>`);
+      } else {
+        if (inList) { out.push('</ul>'); inList = false; }
+        if (trimmed === '') {
+          out.push('');
+        } else {
+          out.push(trimmed);
+        }
+      }
+    }
+    if (inList) out.push('</ul>');
+
+    // Group non-empty, non-HTML lines into <p> tags
+    const result = [];
+    let para = [];
+    for (const line of out) {
+      if (line === '') {
+        if (para.length) { result.push(`<p>${para.join('<br>')}</p>`); para = []; }
+      } else if (line.startsWith('<ul>') || line.startsWith('</ul>') || line.startsWith('<li>')) {
+        if (para.length) { result.push(`<p>${para.join('<br>')}</p>`); para = []; }
+        result.push(line);
+      } else {
+        para.push(line);
+      }
+    }
+    if (para.length) result.push(`<p>${para.join('<br>')}</p>`);
+
+    return result.join('\n');
+  }
+
   _renderMessage(msg) {
     if (msg.type === 'user') {
       return html`
@@ -1426,10 +1510,11 @@ class OpenBrainChat extends LitElement {
       `;
     }
 
-    // System acknowledgment
+    // System message — render markdown for query responses
+    const hasMarkdown = msg.text && (msg.text.includes('**') || msg.text.includes('\n-'));
     return html`
       <div class="message system">
-        <div>${msg.text}</div>
+        <div>${hasMarkdown ? unsafeHTML(this._md(msg.text)) : msg.text}</div>
         ${msg.autoTopics && msg.autoTopics.length > 0 ? html`
           <div style="margin-top: 6px;">
             ${msg.autoTopics.map((t) => html`<span class="tag">${t}</span>`)}
