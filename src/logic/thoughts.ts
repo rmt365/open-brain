@@ -287,9 +287,10 @@ export class ThoughtManager {
       }
     }
 
-    // Sort by combined score, take top N
+    // Sort by combined score, filter by minimum threshold, take top N
     const sorted = Array.from(merged.values())
       .sort((a, b) => b.score - a.score)
+      .filter((s) => s.score >= 0.3)
       .slice(0, limit);
 
     console.log(`[OpenBrain:Search] Hybrid search: ${semanticResults.length} semantic + ${textResults.length} text → ${sorted.length} merged`);

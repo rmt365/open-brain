@@ -852,9 +852,10 @@ class OpenBrainChat extends LitElement {
   }
 
   _parseInput(text) {
-    if (text.startsWith('?')) return { isQuery: true, content: text.slice(1).trim() };
-    if (text.startsWith('/ask ')) return { isQuery: true, content: text.slice(5).trim() };
-    return { isQuery: false, content: text };
+    if (text.startsWith('?')) return { isQuery: true, isPref: false, content: text.slice(1).trim() };
+    if (text.startsWith('/ask ')) return { isQuery: true, isPref: false, content: text.slice(5).trim() };
+    if (text.startsWith('/pref ')) return { isQuery: false, isPref: true, content: text.slice(6).trim() };
+    return { isQuery: false, isPref: false, content: text };
   }
 
   /** Shared POST helper — handles auth, content-type, and error responses. */
@@ -893,7 +894,31 @@ class OpenBrainChat extends LitElement {
     const textarea = this.renderRoot.querySelector('textarea');
     if (textarea) textarea.style.height = 'auto';
 
-    const { isQuery, content } = this._parseInput(text);
+    const { isQuery, isPref, content } = this._parseInput(text);
+
+    // Preference extraction mode — no offline support
+    if (isPref) {
+      if (!this.online) {
+        this._addMsg('error', 'Preference extraction requires an internet connection.');
+        return;
+      }
+      this.loading = true;
+      try {
+        const result = await this._apiPost('/preferences/extract', { text: content });
+        if (result.success && result.data) {
+          const p = result.data;
+          this._addMsg('system', `**Preference saved:** ${p.preference_name}\n- **Domain:** ${p.domain}\n- **Want:** ${p.want}\n- **Reject:** ${p.reject}\n- **Type:** ${p.constraint_type}`, { markdown: true });
+        } else {
+          this._addMsg('error', result.error || 'Could not extract preference.');
+        }
+      } catch (err) {
+        this._addMsg('error', err.message || 'Network error');
+      } finally {
+        this.loading = false;
+        this._saveMessageHistory();
+      }
+      return;
+    }
 
     // Query mode — no offline support
     if (isQuery) {
@@ -1479,7 +1504,7 @@ class OpenBrainChat extends LitElement {
         <div class="empty-state">
           <div class="icon">&#129504;</div>
           <div class="hint">
-            Type a thought to capture it, or start with <strong>?</strong> to ask your brain a question.
+            Type a thought to capture it, <strong>?</strong> to ask your brain, or <strong>/pref</strong> to set a preference.
           </div>
         </div>
       `}

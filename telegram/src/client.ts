@@ -109,6 +109,25 @@ export async function queryBrain(
   });
 }
 
+export interface TastePreference {
+  id: string;
+  preference_name: string;
+  domain: string;
+  reject: string;
+  want: string;
+  constraint_type: string;
+}
+
+export async function extractPreference(
+  baseUrl: string,
+  text: string,
+): Promise<ApiResponse<TastePreference>> {
+  return request<ApiResponse<TastePreference>>(baseUrl, "/preferences/extract", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
 export async function listThoughts(
   baseUrl: string,
   limit?: number,

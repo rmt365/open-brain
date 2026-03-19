@@ -76,8 +76,8 @@ export class OpenBrainServer {
     // Topic management routes (managed topics + suggestions)
     this.app.route("/topics", createTopicRoutes(this.dbManager));
 
-    // Taste preference CRUD and block assembly routes
-    this.app.route("/preferences", createPreferenceRoutes(this.dbManager));
+    // Taste preference CRUD, block assembly, and extraction routes
+    this.app.route("/preferences", createPreferenceRoutes(this.dbManager, this.config.llm));
 
     // UI routes (PWA chat interface)
     this.app.route("/ui", createUIRoutes(this.config.basePath));

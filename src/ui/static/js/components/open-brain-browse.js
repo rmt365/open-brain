@@ -395,7 +395,11 @@ class OpenBrainBrowse extends LitElement {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       if (json.success && json.data) {
-        this._thoughts = json.data.map(r => r.thought || r);
+        this._thoughts = json.data.map(r => {
+          const thought = r.thought || r;
+          if (r.similarity !== undefined) thought._similarity = r.similarity;
+          return thought;
+        });
         this._total = this._thoughts.length;
         this._hasMore = false;
       }
@@ -553,7 +557,8 @@ class OpenBrainBrowse extends LitElement {
   _renderRow(t) {
     const topics = (t.auto_topics || []).join(', ');
     const domain = t.source_url ? this._extractDomain(t.source_url) : '';
-    const meta = [topics, domain].filter(Boolean).join(' · ');
+    const similarity = t._similarity !== undefined ? `${(t._similarity * 100).toFixed(0)}%` : '';
+    const meta = [similarity, topics, domain].filter(Boolean).join(' · ');
     const title = t.metadata?.title || t.text;
     const displayTitle = title.length > 80 ? title.substring(0, 80) + '...' : title;
 

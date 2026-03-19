@@ -4,6 +4,7 @@ import { handleSearch } from "./handlers/search.ts";
 import { handleRecent } from "./handlers/recent.ts";
 import { handleSetup } from "./handlers/setup.ts";
 import { handleAsk } from "./handlers/ask.ts";
+import { handlePref } from "./handlers/pref.ts";
 
 /**
  * Check if a user is allowed to use the bot.
@@ -33,6 +34,7 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
     { command: "search", description: "Semantic search your thoughts" },
     { command: "ask", description: "Ask your brain a question" },
     { command: "recent", description: "List your last 10 thoughts" },
+    { command: "pref", description: "Set a taste preference from natural language" },
     { command: "setup", description: "Show setup instructions for AI tools" },
   ]);
 
@@ -56,6 +58,7 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
         `Commands:\n` +
         `/search <query> - Search your thoughts\n` +
         `/ask <question> - Ask your brain a question\n` +
+        `/pref <description> - Set a taste preference\n` +
         `/recent - Show your last 10 thoughts\n\n` +
         `Try it out -- send me something you're thinking about.`,
     );
@@ -66,6 +69,9 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
 
   // /ask command
   bot.command("ask", (ctx) => handleAsk(ctx, openBrainUrl));
+
+  // /pref command
+  bot.command("pref", (ctx) => handlePref(ctx, openBrainUrl));
 
   // /recent command
   bot.command("recent", (ctx) => handleRecent(ctx, openBrainUrl));

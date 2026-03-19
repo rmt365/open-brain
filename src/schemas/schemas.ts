@@ -111,6 +111,10 @@ export const CreatePreferenceSchema = z.object({
   constraint_type: ConstraintTypeSchema.default("quality standard"),
 });
 
+export const ExtractPreferenceSchema = z.object({
+  text: z.string().min(1, "Preference text is required"),
+});
+
 export const UpdatePreferenceSchema = z.object({
   preference_name: z.string().min(1).optional(),
   domain: z.string().min(1).optional(),
@@ -147,4 +151,5 @@ export type SearchThoughtsInput = z.infer<typeof SearchThoughtsSchema>;
 export type ListThoughtsInput = z.infer<typeof ListThoughtsSchema>;
 export type CreatePreferenceInput = z.infer<typeof CreatePreferenceSchema>;
 export type UpdatePreferenceInput = z.infer<typeof UpdatePreferenceSchema>;
+export type ExtractPreferenceInput = z.infer<typeof ExtractPreferenceSchema>;
 export type CreateManagedTopicInput = z.infer<typeof CreateManagedTopicSchema>;
