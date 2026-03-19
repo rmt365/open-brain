@@ -56,7 +56,7 @@ export const AddPreferenceTool = CreateTool(
       return {
         content: [{
           type: "text" as const,
-          text: `Error saving preference: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error saving preference "${preference_name}": ${error instanceof Error ? error.message : String(error)}`,
         }],
         isError: true,
       };
@@ -152,7 +152,7 @@ export const RemovePreferenceTool = CreateTool(
       return {
         content: [{
           type: "text" as const,
-          text: `Error removing preference: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error removing preference ${id}: ${error instanceof Error ? error.message : String(error)}`,
         }],
         isError: true,
       };

@@ -672,4 +672,64 @@ export class ThoughtManager {
   getTopics(): Array<{ topic: string; count: number }> {
     return this.db.getTopicCounts();
   }
+
+  // ============================================================
+  // BRAIN QUERY (RAG)
+  // ============================================================
+
+  /** Ask a question against the brain. Searches for context, then synthesizes an answer via LLM. */
+  async queryBrain(question: string): Promise<string> {
+    // 1. Search for relevant thoughts
+    const searchResults = await this.search(question, undefined, 10);
+
+    // 2. Get taste preferences for additional context
+    const preferences = this.db.listPreferences();
+
+    // 3. Build context
+    const thoughtContext = searchResults.length > 0
+      ? searchResults.map((r, i) => {
+          const t = r.thought;
+          const date = new Date(t.created_at).toLocaleDateString("en-US", {
+            month: "short", day: "numeric", year: "numeric",
+          });
+          const parts = [`[${i + 1}] (${t.thought_type}, ${date}, ${(r.similarity * 100).toFixed(0)}% match)`];
+          parts.push(t.text);
+          if (t.auto_topics?.length) parts.push(`Topics: ${t.auto_topics.join(", ")}`);
+          if (t.auto_life_area) parts.push(`Life area: ${t.auto_life_area}`);
+          return parts.join("\n");
+        }).join("\n\n")
+      : "No relevant thoughts found in the brain.";
+
+    const prefContext = preferences.length > 0
+      ? preferences.map(p => `- ${p.preference_name} (${p.domain}): want "${p.want}", reject "${p.reject}"`).join("\n")
+      : "";
+
+    const system = [
+      "You are Open Brain, a personal knowledge assistant. The user is querying their own brain — a collection of their captured thoughts, ideas, notes, and preferences.",
+      "Answer the question based on the context provided. Be concise and direct.",
+      "If the context doesn't contain enough information, say so honestly.",
+      "Reference specific thoughts when relevant (by their number in brackets).",
+    ].join(" ");
+
+    const userPrompt = [
+      `Question: ${question}`,
+      "",
+      "## Relevant thoughts from the brain:",
+      thoughtContext,
+      ...(prefContext ? ["", "## User preferences:", prefContext] : []),
+    ].join("\n");
+
+    // 4. Call LLM
+    const answer = await this.config.llm.provider.complete(system, userPrompt, this.config.llm.model);
+
+    if (!answer) {
+      // Fallback: return raw search results
+      if (searchResults.length === 0) {
+        return "I couldn't find anything relevant in your brain for that question.";
+      }
+      return "I found some relevant thoughts but couldn't synthesize an answer:\n\n" + thoughtContext;
+    }
+
+    return answer;
+  }
 }

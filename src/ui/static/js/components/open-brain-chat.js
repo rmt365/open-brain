@@ -822,6 +822,16 @@ class OpenBrainChat extends LitElement {
     }
   }
 
+  _isQuery(text) {
+    return text.startsWith('?') || text.startsWith('/ask ');
+  }
+
+  _extractQuestion(text) {
+    if (text.startsWith('?')) return text.slice(1).trim();
+    if (text.startsWith('/ask ')) return text.slice(5).trim();
+    return text;
+  }
+
   async _send() {
     const text = this.inputText.trim();
     if (!text || this.loading) return;
@@ -839,6 +849,12 @@ class OpenBrainChat extends LitElement {
     const textarea = this.renderRoot.querySelector('textarea');
     if (textarea) {
       textarea.style.height = 'auto';
+    }
+
+    // Route: query vs capture
+    if (this._isQuery(text)) {
+      await this._sendQuery(this._extractQuestion(text));
+      return;
     }
 
     // Build request body
@@ -914,6 +930,73 @@ class OpenBrainChat extends LitElement {
       this.messages = [...this.messages, {
         type: 'system',
         text: 'Offline. Thought queued for when you reconnect.',
+        timestamp: new Date().toISOString(),
+      }];
+    } finally {
+      this.loading = false;
+      this._saveMessageHistory();
+    }
+  }
+
+  async _sendQuery(question) {
+    if (!this.online) {
+      this.messages = [...this.messages, {
+        type: 'error',
+        text: 'Brain queries require an internet connection.',
+        timestamp: new Date().toISOString(),
+      }];
+      this._saveMessageHistory();
+      return;
+    }
+
+    this.loading = true;
+
+    try {
+      const resp = await fetch(`${BASE_PATH}/thoughts/query`, {
+        method: 'POST',
+        headers: this._getHeaders(),
+        body: JSON.stringify({ question }),
+      });
+
+      if (resp.status === 401) {
+        this._showApiKeyDialog = true;
+        this.messages = [...this.messages, {
+          type: 'error',
+          text: 'API key required.',
+          timestamp: new Date().toISOString(),
+        }];
+        return;
+      }
+
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        this.messages = [...this.messages, {
+          type: 'error',
+          text: 'Failed to reach Open Brain service.',
+          timestamp: new Date().toISOString(),
+        }];
+        return;
+      }
+
+      const result = await resp.json();
+
+      if (result.success && result.data) {
+        this.messages = [...this.messages, {
+          type: 'system',
+          text: result.data.answer,
+          timestamp: new Date().toISOString(),
+        }];
+      } else {
+        this.messages = [...this.messages, {
+          type: 'error',
+          text: result.error || 'Query failed.',
+          timestamp: new Date().toISOString(),
+        }];
+      }
+    } catch (err) {
+      this.messages = [...this.messages, {
+        type: 'error',
+        text: 'Failed to query brain: ' + (err.message || 'network error'),
         timestamp: new Date().toISOString(),
       }];
     } finally {
@@ -1443,8 +1526,7 @@ class OpenBrainChat extends LitElement {
         <div class="empty-state">
           <div class="icon">&#129504;</div>
           <div class="hint">
-            What's on your mind? Type a thought, idea, question, or observation
-            and it will be captured and classified.
+            Type a thought to capture it, or start with <strong>?</strong> to ask your brain a question.
           </div>
         </div>
       `}
@@ -1452,7 +1534,7 @@ class OpenBrainChat extends LitElement {
       <div class="input-area">
         <textarea
           rows="1"
-          placeholder="Capture a thought..."
+          placeholder="Capture a thought or ? to ask..."
           .value=${this.inputText}
           @input=${this._autoGrow}
           @keydown=${this._handleKeydown}

@@ -99,6 +99,16 @@ export async function searchThoughts(
   });
 }
 
+export async function queryBrain(
+  baseUrl: string,
+  question: string,
+): Promise<ApiResponse<{ answer: string }>> {
+  return request<ApiResponse<{ answer: string }>>(baseUrl, "/thoughts/query", {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+
 export async function listThoughts(
   baseUrl: string,
   limit?: number,

@@ -57,7 +57,7 @@ const IngestUrlTool = CreateTool(
       return {
         content: [{
           type: "text" as const,
-          text: `Error ingesting URL: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error ingesting URL "${url}": ${error instanceof Error ? error.message : String(error)}`,
         }],
         isError: true,
       };

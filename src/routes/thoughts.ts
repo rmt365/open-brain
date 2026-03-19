@@ -8,6 +8,7 @@ import {
   UpdateThoughtSchema,
   SearchThoughtsSchema,
   IngestUrlSchema,
+  QueryBrainSchema,
 } from "../schemas/schemas.ts";
 import type { ThoughtManager } from "../logic/thoughts.ts";
 import type {
@@ -143,6 +144,27 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
       return c.json<ApiResponse>({ success: false, error: msg }, 500);
     }
   });
+
+  // POST /query — ask a question against the brain (RAG)
+  router.post(
+    "/query",
+    validateJson(QueryBrainSchema),
+    async (c) => {
+      try {
+        const body = c.req.valid("json");
+        const answer = await manager.queryBrain(body.question);
+
+        return c.json<ApiResponse<{ answer: string }>>({
+          success: true,
+          data: { answer },
+        });
+      } catch (error) {
+        console.error("[OpenBrain:Routes] Error querying brain:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        return c.json<ApiResponse>({ success: false, error: msg }, 500);
+      }
+    },
+  );
 
   // POST /search — semantic search
   router.post(

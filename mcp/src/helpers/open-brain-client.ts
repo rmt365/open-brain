@@ -66,6 +66,7 @@ interface TopicEntry {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`;
+  const method = options?.method || "GET";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -82,7 +83,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Open Brain API error (${response.status}): ${body}`);
+    throw new Error(`Open Brain API error: ${method} ${path} → ${response.status}: ${body}`);
   }
 
   return response.json() as Promise<T>;

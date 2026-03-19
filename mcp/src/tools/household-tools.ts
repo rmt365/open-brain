@@ -50,7 +50,7 @@ export const AddHouseholdItemTool = CreateTool(
       return { content: [{ type: "text" as const, text: parts.join("\n") }] };
     } catch (error) {
       return {
-        content: [{ type: "text" as const, text: `Error adding item: ${error instanceof Error ? error.message : String(error)}` }],
+        content: [{ type: "text" as const, text: `Error adding item "${name}": ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }
@@ -96,7 +96,7 @@ export const SearchHouseholdItemsTool = CreateTool(
       };
     } catch (error) {
       return {
-        content: [{ type: "text" as const, text: `Error searching items: ${error instanceof Error ? error.message : String(error)}` }],
+        content: [{ type: "text" as const, text: `Error searching items (query="${query || ""}"): ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }
@@ -135,7 +135,7 @@ export const GetHouseholdItemTool = CreateTool(
       return { content: [{ type: "text" as const, text: parts.join("\n") }] };
     } catch (error) {
       return {
-        content: [{ type: "text" as const, text: `Error getting item: ${error instanceof Error ? error.message : String(error)}` }],
+        content: [{ type: "text" as const, text: `Error getting item ${item_id}: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }
@@ -178,7 +178,7 @@ export const AddVendorTool = CreateTool(
       return { content: [{ type: "text" as const, text: parts.join("\n") }] };
     } catch (error) {
       return {
-        content: [{ type: "text" as const, text: `Error adding vendor: ${error instanceof Error ? error.message : String(error)}` }],
+        content: [{ type: "text" as const, text: `Error adding vendor "${name}": ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }

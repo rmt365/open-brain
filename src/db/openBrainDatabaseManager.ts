@@ -590,16 +590,57 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   // THOUGHT CHUNKS (URL ingestion)
   // ============================================
 
-  /** Create VSS table for chunks. Safe to call multiple times. */
-  createChunkVSSTable(): boolean {
+  /** Create VSS table for chunks. Recreates on dimension mismatch. */
+  createChunkVSSTable(dimensions: number = 384): boolean {
     try {
-      this.db.exec(
-        `CREATE VIRTUAL TABLE IF NOT EXISTS vss_chunks USING vss0(embedding(1024))`
-      );
+      // Check if existing table has wrong dimensions — recreate if so
+      const existing = this.db.prepare(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='vss_chunks'"
+      ).get() as { sql: string } | undefined;
+
+      if (existing?.sql && !existing.sql.includes("embedding(" + String(dimensions) + ")")) {
+        console.log("[OpenBrainDB] vss_chunks dimension mismatch, recreating for " + dimensions + "d");
+        this.db.prepare("DROP TABLE vss_chunks").run();
+      }
+
+      this.db.prepare(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS vss_chunks USING vss0(embedding(" + String(dimensions) + "))"
+      ).run();
+      this.rebuildChunkVSSIndex();
+      console.log("[OpenBrainDB] VSS table vss_chunks ready");
       return true;
     } catch (e) {
       console.warn(`[OpenBrainDB] Could not create vss_chunks table: ${e}`);
       return false;
+    }
+  }
+
+  /** Rebuild the chunk VSS index from all chunks with embeddings. */
+  private rebuildChunkVSSIndex(): void {
+    try {
+      const rows = this.db.prepare(`
+        SELECT _vss_rowid, embedding FROM thought_chunks
+        WHERE embedding IS NOT NULL AND _vss_rowid IS NOT NULL
+      `).all() as Array<{ _vss_rowid: number; embedding: Uint8Array }>;
+
+      if (rows.length === 0) return;
+
+      this.db.exec("DELETE FROM vss_chunks");
+      const stmt = this.db.prepare(
+        "INSERT INTO vss_chunks(rowid, embedding) VALUES (?, ?)"
+      );
+      let indexed = 0;
+      for (const row of rows) {
+        try {
+          stmt.run(row._vss_rowid, row.embedding);
+          indexed++;
+        } catch (e) {
+          console.warn(`[OpenBrainDB] VSS chunk insert failed for rowid ${row._vss_rowid}: ${e}`);
+        }
+      }
+      console.log(`[OpenBrainDB] Chunk VSS index rebuilt: ${indexed} chunks indexed`);
+    } catch (e) {
+      console.warn(`[OpenBrainDB] Chunk VSS rebuild failed: ${e}`);
     }
   }
 

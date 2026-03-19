@@ -78,6 +78,10 @@ export const SearchThoughtsSchema = z.object({
   limit: z.number().int().min(1).max(100).default(10),
 });
 
+export const QueryBrainSchema = z.object({
+  question: z.string().min(1, "Question is required"),
+});
+
 export const ListThoughtsSchema = z.object({
   thought_type: ThoughtTypeSchema.optional(),
   topic: z.string().min(1).optional(),

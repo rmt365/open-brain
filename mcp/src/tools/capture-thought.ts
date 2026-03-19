@@ -76,7 +76,7 @@ const CaptureThoughtTool = CreateTool(
       return {
         content: [{
           type: "text" as const,
-          text: `Error capturing thought: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error capturing thought (${text.length} chars): ${error instanceof Error ? error.message : String(error)}`,
         }],
         isError: true,
       };

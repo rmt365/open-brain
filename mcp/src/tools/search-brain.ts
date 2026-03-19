@@ -78,7 +78,7 @@ const SearchBrainTool = CreateTool(
       return {
         content: [{
           type: "text" as const,
-          text: `Error searching brain: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error searching brain for "${query}": ${error instanceof Error ? error.message : String(error)}`,
         }],
         isError: true,
       };

@@ -87,7 +87,7 @@ const FindRelatedTool = CreateTool(
       return {
         content: [{
           type: "text" as const,
-          text: `Error finding related thoughts: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error finding related thoughts for ${thought_id}: ${error instanceof Error ? error.message : String(error)}`,
         }],
         isError: true,
       };
