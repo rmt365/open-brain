@@ -91,4 +91,7 @@ jobs:
               fi
             done
 
+            # Clean up old images to prevent disk fill
+            docker image prune -af --filter "until=1h" 2>/dev/null || true
+
             echo "[deploy] Done"
