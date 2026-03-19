@@ -598,15 +598,17 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='vss_chunks'"
       ).get() as { sql: string } | undefined;
 
+      let needsRebuild = false;
       if (existing?.sql && !existing.sql.includes("embedding(" + String(dimensions) + ")")) {
         console.log("[OpenBrainDB] vss_chunks dimension mismatch, recreating for " + dimensions + "d");
         this.db.prepare("DROP TABLE vss_chunks").run();
+        needsRebuild = true;
       }
 
       this.db.prepare(
         "CREATE VIRTUAL TABLE IF NOT EXISTS vss_chunks USING vss0(embedding(" + String(dimensions) + "))"
       ).run();
-      this.rebuildChunkVSSIndex();
+      if (needsRebuild) this.rebuildChunkVSSIndex();
       console.log("[OpenBrainDB] VSS table vss_chunks ready");
       return true;
     } catch (e) {

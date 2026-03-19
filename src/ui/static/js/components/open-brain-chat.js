@@ -1,8 +1,5 @@
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
-import { unsafeHTML } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
+import { LitElement, html, css, unsafeHTML } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked@15/lib/marked.esm.js';
-
-marked.setOptions({ breaks: true, gfm: true });
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -854,21 +851,37 @@ class OpenBrainChat extends LitElement {
     }
   }
 
-  _isQuery(text) {
-    return text.startsWith('?') || text.startsWith('/ask ');
+  _parseInput(text) {
+    if (text.startsWith('?')) return { isQuery: true, content: text.slice(1).trim() };
+    if (text.startsWith('/ask ')) return { isQuery: true, content: text.slice(5).trim() };
+    return { isQuery: false, content: text };
   }
 
-  _extractQuestion(text) {
-    if (text.startsWith('?')) return text.slice(1).trim();
-    if (text.startsWith('/ask ')) return text.slice(5).trim();
-    return text;
+  /** Shared POST helper — handles auth, content-type, and error responses. */
+  async _apiPost(path, body) {
+    const resp = await fetch(`${BASE_PATH}${path}`, {
+      method: 'POST',
+      headers: this._getHeaders(),
+      body: JSON.stringify(body),
+    });
+
+    if (resp.status === 401) {
+      this._showApiKeyDialog = true;
+      throw new Error('API key required. Use the settings button to enter your key.');
+    }
+
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('Failed to reach Open Brain service.');
+    }
+
+    return resp.json();
   }
 
   async _send() {
     const text = this.inputText.trim();
     if (!text || this.loading) return;
 
-    // Add user message to display
     const userMsg = {
       type: 'user',
       text,
@@ -877,27 +890,37 @@ class OpenBrainChat extends LitElement {
     this.messages = [...this.messages, userMsg];
     this.inputText = '';
 
-    // Reset textarea height
     const textarea = this.renderRoot.querySelector('textarea');
-    if (textarea) {
-      textarea.style.height = 'auto';
-    }
+    if (textarea) textarea.style.height = 'auto';
 
-    // Route: query vs capture
-    if (this._isQuery(text)) {
-      await this._sendQuery(this._extractQuestion(text));
+    const { isQuery, content } = this._parseInput(text);
+
+    // Query mode — no offline support
+    if (isQuery) {
+      if (!this.online) {
+        this._addMsg('error', 'Brain queries require an internet connection.');
+        return;
+      }
+      this.loading = true;
+      try {
+        const result = await this._apiPost('/thoughts/query', { question: content });
+        if (result.success && result.data) {
+          this._addMsg('system', result.data.answer, { markdown: true });
+        } else {
+          this._addMsg('error', result.error || 'Query failed.');
+        }
+      } catch (err) {
+        this._addMsg('error', err.message || 'Network error');
+      } finally {
+        this.loading = false;
+        this._saveMessageHistory();
+      }
       return;
     }
 
-    // Build request body
-    const body = {
-      text,
-      source_channel: 'web',
-      metadata: {},
-    };
-    if (this.user) {
-      body.metadata.user = this.user;
-    }
+    // Capture mode
+    const body = { text, source_channel: 'web', metadata: {} };
+    if (this.user) body.metadata.user = this.user;
 
     if (!this.online) {
       this._queueOffline(body, userMsg);
@@ -905,136 +928,34 @@ class OpenBrainChat extends LitElement {
     }
 
     this.loading = true;
-
     try {
-      const resp = await fetch(`${BASE_PATH}/thoughts`, {
-        method: 'POST',
-        headers: this._getHeaders(),
-        body: JSON.stringify(body),
-      });
-
-      if (resp.status === 401) {
-        // API key required or invalid
-        this._showApiKeyDialog = true;
-        this.messages = [...this.messages, {
-          type: 'error',
-          text: 'API key required. Use the settings button to enter your key.',
-          timestamp: new Date().toISOString(),
-        }];
-        return;
-      }
-
-      // Check content-type before parsing JSON
-      const contentType = resp.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        console.error('Non-JSON response:', resp.status, contentType);
-        this.messages = [...this.messages, {
-          type: 'error',
-          text: 'Failed to reach Open Brain service.',
-          timestamp: new Date().toISOString(),
-        }];
-        return;
-      }
-
-      const result = await resp.json();
+      const result = await this._apiPost('/thoughts', body);
 
       if (result.success && result.data) {
         const ack = this._buildAck(result.data);
         this.messages = [...this.messages, ack];
       } else if (result.offline) {
-        // Service worker returned offline response
         this._queueOffline(body, userMsg);
-        this.messages = [...this.messages, {
-          type: 'system',
-          text: 'You\'re offline. This thought will be sent when you reconnect.',
-          timestamp: new Date().toISOString(),
-        }];
+        this._addMsg('system', 'You\'re offline. This thought will be sent when you reconnect.');
       } else {
-        this.messages = [...this.messages, {
-          type: 'error',
-          text: result.error || 'Something went wrong.',
-          timestamp: new Date().toISOString(),
-        }];
+        this._addMsg('error', result.error || 'Something went wrong.');
       }
     } catch (err) {
-      // Network error — queue for later
       this._queueOffline(body, userMsg);
-      this.messages = [...this.messages, {
-        type: 'system',
-        text: 'Offline. Thought queued for when you reconnect.',
-        timestamp: new Date().toISOString(),
-      }];
+      this._addMsg('system', 'Offline. Thought queued for when you reconnect.');
     } finally {
       this.loading = false;
       this._saveMessageHistory();
     }
   }
 
-  async _sendQuery(question) {
-    if (!this.online) {
-      this.messages = [...this.messages, {
-        type: 'error',
-        text: 'Brain queries require an internet connection.',
-        timestamp: new Date().toISOString(),
-      }];
-      this._saveMessageHistory();
-      return;
-    }
-
-    this.loading = true;
-
-    try {
-      const resp = await fetch(`${BASE_PATH}/thoughts/query`, {
-        method: 'POST',
-        headers: this._getHeaders(),
-        body: JSON.stringify({ question }),
-      });
-
-      if (resp.status === 401) {
-        this._showApiKeyDialog = true;
-        this.messages = [...this.messages, {
-          type: 'error',
-          text: 'API key required.',
-          timestamp: new Date().toISOString(),
-        }];
-        return;
-      }
-
-      const contentType = resp.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        this.messages = [...this.messages, {
-          type: 'error',
-          text: 'Failed to reach Open Brain service.',
-          timestamp: new Date().toISOString(),
-        }];
-        return;
-      }
-
-      const result = await resp.json();
-
-      if (result.success && result.data) {
-        this.messages = [...this.messages, {
-          type: 'system',
-          text: result.data.answer,
-          timestamp: new Date().toISOString(),
-        }];
-      } else {
-        this.messages = [...this.messages, {
-          type: 'error',
-          text: result.error || 'Query failed.',
-          timestamp: new Date().toISOString(),
-        }];
-      }
-    } catch (err) {
-      this.messages = [...this.messages, {
-        type: 'error',
-        text: 'Failed to query brain: ' + (err.message || 'network error'),
-        timestamp: new Date().toISOString(),
-      }];
-    } finally {
-      this.loading = false;
-      this._saveMessageHistory();
-    }
+  _addMsg(type, text, opts = {}) {
+    this.messages = [...this.messages, {
+      type,
+      text,
+      timestamp: new Date().toISOString(),
+      ...opts,
+    }];
   }
 
   _buildAck(data) {
@@ -1459,10 +1380,9 @@ class OpenBrainChat extends LitElement {
     }
 
     // System message — render markdown for query responses
-    const hasMarkdown = msg.text && (msg.text.includes('**') || msg.text.includes('\n-'));
     return html`
       <div class="message system">
-        <div>${hasMarkdown ? unsafeHTML(marked.parse(msg.text)) : msg.text}</div>
+        <div>${msg.markdown ? unsafeHTML(marked.parse(msg.text, { breaks: true, gfm: true })) : msg.text}</div>
         ${msg.autoTopics && msg.autoTopics.length > 0 ? html`
           <div style="margin-top: 6px;">
             ${msg.autoTopics.map((t) => html`<span class="tag">${t}</span>`)}
