@@ -1,5 +1,8 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { unsafeHTML } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
+import { marked } from 'https://cdn.jsdelivr.net/npm/marked@15/lib/marked.esm.js';
+
+marked.setOptions({ breaks: true, gfm: true });
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -1436,61 +1439,6 @@ class OpenBrainChat extends LitElement {
     `;
   }
 
-  /** Simple markdown to HTML for LLM responses */
-  _md(text) {
-    let h = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    // Bold
-    h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    // Italic
-    h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Inline code
-    h = h.replace(/`(.+?)`/g, '<code>$1</code>');
-
-    // Convert lines to paragraphs and lists
-    const lines = h.split('\n');
-    const out = [];
-    let inList = false;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      const listMatch = trimmed.match(/^[-*]\s+(.*)/);
-
-      if (listMatch) {
-        if (!inList) { out.push('<ul>'); inList = true; }
-        out.push(`<li>${listMatch[1]}</li>`);
-      } else {
-        if (inList) { out.push('</ul>'); inList = false; }
-        if (trimmed === '') {
-          out.push('');
-        } else {
-          out.push(trimmed);
-        }
-      }
-    }
-    if (inList) out.push('</ul>');
-
-    // Group non-empty, non-HTML lines into <p> tags
-    const result = [];
-    let para = [];
-    for (const line of out) {
-      if (line === '') {
-        if (para.length) { result.push(`<p>${para.join('<br>')}</p>`); para = []; }
-      } else if (line.startsWith('<ul>') || line.startsWith('</ul>') || line.startsWith('<li>')) {
-        if (para.length) { result.push(`<p>${para.join('<br>')}</p>`); para = []; }
-        result.push(line);
-      } else {
-        para.push(line);
-      }
-    }
-    if (para.length) result.push(`<p>${para.join('<br>')}</p>`);
-
-    return result.join('\n');
-  }
-
   _renderMessage(msg) {
     if (msg.type === 'user') {
       return html`
@@ -1514,7 +1462,7 @@ class OpenBrainChat extends LitElement {
     const hasMarkdown = msg.text && (msg.text.includes('**') || msg.text.includes('\n-'));
     return html`
       <div class="message system">
-        <div>${hasMarkdown ? unsafeHTML(this._md(msg.text)) : msg.text}</div>
+        <div>${hasMarkdown ? unsafeHTML(marked.parse(msg.text)) : msg.text}</div>
         ${msg.autoTopics && msg.autoTopics.length > 0 ? html`
           <div style="margin-top: 6px;">
             ${msg.autoTopics.map((t) => html`<span class="tag">${t}</span>`)}
