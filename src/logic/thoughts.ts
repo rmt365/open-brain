@@ -627,9 +627,11 @@ export class ThoughtManager {
       if (results.length >= limit) break;
       if (thoughtType && thought.thought_type !== thoughtType) continue;
 
+      const similarity = 1 / (1 + distance);
+      if (similarity < 0.3) break; // below this threshold, results are noise
       results.push({
         thought,
-        similarity: 1 / (1 + distance),
+        similarity,
         rank: rank++,
       });
     }
