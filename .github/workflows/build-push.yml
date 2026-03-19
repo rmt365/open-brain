@@ -59,11 +59,17 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /opt/open-brain
+            SHA=${{ github.sha }}
 
-            # Pull latest images
-            docker pull ghcr.io/rmt365/open-brain/brain:latest
-            docker pull ghcr.io/rmt365/open-brain/mcp:latest
-            docker pull ghcr.io/rmt365/open-brain/telegram:latest
+            # Pull by commit SHA (avoids CDN cache issues with :latest)
+            docker pull ghcr.io/rmt365/open-brain/brain:${SHA}
+            docker pull ghcr.io/rmt365/open-brain/mcp:${SHA}
+            docker pull ghcr.io/rmt365/open-brain/telegram:${SHA}
+
+            # Tag as latest for compose
+            docker tag ghcr.io/rmt365/open-brain/brain:${SHA} ghcr.io/rmt365/open-brain/brain:latest
+            docker tag ghcr.io/rmt365/open-brain/mcp:${SHA} ghcr.io/rmt365/open-brain/mcp:latest
+            docker tag ghcr.io/rmt365/open-brain/telegram:${SHA} ghcr.io/rmt365/open-brain/telegram:latest
 
             # Restart all instances (include telegram profile for instances that have it configured)
             for env_file in deploy/instances/*.env; do
