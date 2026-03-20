@@ -64,6 +64,10 @@ const SearchBrainTool = CreateTool(
         if (t.auto_action_items && t.auto_action_items.length > 0) {
           extras.push(`Actions: ${t.auto_action_items.join("; ")}`);
         }
+        const meta = t.metadata as Record<string, unknown> | null;
+        if (meta?.wasabi_key) {
+          extras.push(`Document: ${meta.original_filename || "attached file"}`);
+        }
         const extrasStr = extras.length > 0 ? `\n   ${extras.join(" | ")}` : "";
         return `${i + 1}. [${t.thought_type}]${topic} (${similarity}%${matchLabel}, ${date})\n   ${t.text}${extrasStr}\n   ID: ${t.id}`;
       });

@@ -132,5 +132,42 @@ export function createDocumentRoutes(
     }
   });
 
+  app.get("/:thoughtId", async (c) => {
+    const thoughtId = c.req.param("thoughtId");
+
+    const thought = manager.get(thoughtId);
+    if (!thought) {
+      return c.json({ success: false, error: "Thought not found" }, 404);
+    }
+
+    const metadata = thought.metadata as Record<string, unknown> | null;
+    const wasabiKey = metadata?.wasabi_key as string | undefined;
+    if (!wasabiKey) {
+      return c.json({ success: false, error: "No document attached to this thought" }, 404);
+    }
+
+    if (!storage) {
+      return c.json({ success: false, error: "Document storage not configured" }, 503);
+    }
+
+    try {
+      const { stream, contentType, contentLength } = await storage.download(wasabiKey);
+      const filename = (metadata!.original_filename as string) || "document";
+      const mimeType = (metadata!.mime_type as string) || contentType;
+
+      c.header("Content-Type", mimeType);
+      c.header("Content-Disposition", `inline; filename="${filename}"`);
+      if (contentLength) {
+        c.header("Content-Length", String(contentLength));
+      }
+
+      return c.body(stream);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[OpenBrain:DocDownload] Failed to fetch document: ${msg}`);
+      return c.json({ success: false, error: "Failed to retrieve document" }, 500);
+    }
+  });
+
   return app;
 }

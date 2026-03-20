@@ -1,7 +1,7 @@
 // Open Brain - Document Storage Client
 // Thin wrapper around S3 for storing document originals in Wasabi
 
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import type { WasabiConfig } from "../config.ts";
 
 export class DocumentStorage {
@@ -48,6 +48,36 @@ export class DocumentStorage {
     await this.client.send(command);
     console.log(`[OpenBrain:DocStorage] Uploaded ${key} (${data.length} bytes)`);
     return key;
+  }
+
+  /**
+   * Download a document from Wasabi.
+   * Returns the S3 object body as a web ReadableStream with content metadata.
+   */
+  async download(key: string): Promise<{
+    stream: ReadableStream<Uint8Array>;
+    contentType: string;
+    contentLength: number;
+  }> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    const response = await this.client.send(command);
+
+    if (!response.Body) {
+      throw new Error(`Empty response body for key: ${key}`);
+    }
+
+    // The SDK returns a web ReadableStream in Deno
+    const stream = response.Body as unknown as ReadableStream<Uint8Array>;
+
+    return {
+      stream,
+      contentType: response.ContentType || "application/octet-stream",
+      contentLength: response.ContentLength || 0,
+    };
   }
 
   /** Construct a reference URL for a stored document. */

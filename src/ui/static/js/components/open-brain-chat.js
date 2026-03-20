@@ -27,6 +27,7 @@ class OpenBrainChat extends LitElement {
     _prefEditing: { type: String, state: true },
     _prefFormData: { type: Object, state: true },
     _pendingFile: { type: Object, state: true },
+    _lightboxSrc: { type: String, state: true },
   };
 
   static styles = css`
@@ -413,6 +414,34 @@ class OpenBrainChat extends LitElement {
 
     .file-preview .file-remove:hover {
       color: #ef4444;
+    }
+
+    .doc-link {
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .doc-link:hover { text-decoration: underline; }
+
+    .lightbox-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      cursor: pointer;
+    }
+    .lightbox-overlay img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     }
 
     /* Offline banner */
@@ -824,6 +853,7 @@ class OpenBrainChat extends LitElement {
     this._showSettings = false;
     this._prefFormData = null;
     this._pendingFile = null;
+    this._lightboxSrc = null;
   }
 
   connectedCallback() {
@@ -1003,6 +1033,11 @@ class OpenBrainChat extends LitElement {
 
       if (result.success && result.data) {
         const ext = result.data.extraction;
+        const docOpts = result.data.thought_id ? {
+          documentUrl: `${BASE_PATH}/documents/${result.data.thought_id}`,
+          documentMimeType: file.type,
+          documentFilename: file.name || 'document',
+        } : {};
         if (ext) {
           const parts = [`**${ext.title}**`];
           parts.push(`Type: ${ext.document_type}`);
@@ -1015,9 +1050,9 @@ class OpenBrainChat extends LitElement {
               : ext.extracted_text;
             parts.push(`\n${preview}`);
           }
-          this._addMsg('system', parts.join('\n'), { markdown: true });
+          this._addMsg('system', parts.join('\n'), { markdown: true, ...docOpts });
         } else {
-          this._addMsg('system', `Document uploaded and saved (extraction unavailable).`);
+          this._addMsg('system', 'Document uploaded and saved.', { markdown: true, ...docOpts });
         }
       } else {
         this._addMsg('error', result.error || 'Upload failed.');
@@ -1148,6 +1183,15 @@ class OpenBrainChat extends LitElement {
     } finally {
       this.loading = false;
       this._saveMessageHistory();
+    }
+  }
+
+  _viewDocument(e, msg) {
+    e.preventDefault();
+    if (msg.documentMimeType && msg.documentMimeType.startsWith('image/')) {
+      this._lightboxSrc = msg.documentUrl;
+    } else {
+      window.open(msg.documentUrl, '_blank');
     }
   }
 
@@ -1585,6 +1629,11 @@ class OpenBrainChat extends LitElement {
     return html`
       <div class="message system">
         <div>${msg.markdown ? unsafeHTML(marked.parse(msg.text, { breaks: true, gfm: true })) : msg.text}</div>
+        ${msg.documentUrl ? html`
+          <a class="doc-link" href=${msg.documentUrl} @click=${(e) => this._viewDocument(e, msg)}>
+            View original${msg.documentFilename ? ` (${msg.documentFilename})` : ''}
+          </a>
+        ` : ''}
         ${msg.autoTopics && msg.autoTopics.length > 0 ? html`
           <div style="margin-top: 6px;">
             ${msg.autoTopics.map((t) => html`<span class="tag">${t}</span>`)}
@@ -1732,6 +1781,11 @@ class OpenBrainChat extends LitElement {
 
       ${this._showApiKeyDialog ? this._renderApiKeyDialog() : ''}
       ${this._showPreferences ? this._renderPreferencesPanel() : ''}
+      ${this._lightboxSrc ? html`
+        <div class="lightbox-overlay" @click=${() => { this._lightboxSrc = null; }}>
+          <img src=${this._lightboxSrc} alt="Document" />
+        </div>
+      ` : ''}
     `;
   }
 }

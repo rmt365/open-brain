@@ -40,6 +40,7 @@ class OpenBrainBrowse extends LitElement {
     _editingField: { type: String, state: true },
     _offset: { type: Number, state: true },
     _hasMore: { type: Boolean, state: true },
+    _lightboxSrc: { type: String, state: true },
   };
 
   static styles = css`
@@ -319,6 +320,31 @@ class OpenBrainBrowse extends LitElement {
       padding: 20px;
       color: var(--text-muted);
     }
+
+    .lightbox-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      cursor: pointer;
+    }
+    .lightbox-overlay img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    .doc-link {
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .doc-link:hover { text-decoration: underline; }
   `;
 
   constructor() {
@@ -332,6 +358,7 @@ class OpenBrainBrowse extends LitElement {
     this._editingField = null;
     this._offset = 0;
     this._hasMore = true;
+    this._lightboxSrc = null;
   }
 
   connectedCallback() {
@@ -491,6 +518,18 @@ class OpenBrainBrowse extends LitElement {
     try { return new URL(url).hostname; } catch { return url; }
   }
 
+  _viewDocument(e, thought) {
+    e.preventDefault();
+    e.stopPropagation();
+    const mimeType = thought.metadata?.mime_type || '';
+    const url = `${BASE_PATH}/documents/${thought.id}`;
+    if (mimeType.startsWith('image/')) {
+      this._lightboxSrc = url;
+    } else {
+      window.open(url, '_blank');
+    }
+  }
+
   _getTypeColor(type) {
     return TYPE_COLORS[type] || '#94a3b8';
   }
@@ -551,6 +590,12 @@ class OpenBrainBrowse extends LitElement {
           </div>
         ` : ''}
       </div>
+
+      ${this._lightboxSrc ? html`
+        <div class="lightbox-overlay" @click=${() => { this._lightboxSrc = null; }}>
+          <img src=${this._lightboxSrc} alt="Document" />
+        </div>
+      ` : ''}
     `;
   }
 
@@ -596,6 +641,13 @@ class OpenBrainBrowse extends LitElement {
             <div class="source-url">
               <span class="label">Source</span>
               <a href="${t.source_url}" target="_blank" rel="noopener">${t.source_url}</a>
+            </div>
+          ` : ''}
+
+          ${t.metadata?.wasabi_key ? html`
+            <div class="source-url">
+              <span class="label">Document</span>
+              <a class="doc-link" href="${BASE_PATH}/documents/${t.id}" @click=${(e) => this._viewDocument(e, t)}>${t.metadata.original_filename || 'View original'}${t.metadata.file_size ? ` (${(t.metadata.file_size / 1024).toFixed(0)} KB)` : ''}</a>
             </div>
           ` : ''}
 
