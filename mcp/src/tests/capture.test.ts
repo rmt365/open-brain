@@ -23,6 +23,7 @@ const fakeThought = {
   life_area: null,
   auto_life_area: "craft",
   source_channel: "mcp",
+  source_url: null,
   auto_type: "idea",
   auto_topics: ["testing", "vitest"],
   confidence: 0.95,

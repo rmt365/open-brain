@@ -142,6 +142,7 @@ const ExploreTool = CreateCompoundTool(
           t.text.length > 500 ? t.text.substring(0, 500) + "..." : t.text,
         ];
 
+        if (t.source_url) parts.push(`Source URL: ${t.source_url}`);
         if (t.life_area || t.auto_life_area) parts.push(`Life area: ${t.life_area || t.auto_life_area}`);
         if (t.auto_topics?.length) parts.push(`Topics: ${t.auto_topics.join(", ")}`);
         if (t.auto_people?.length) parts.push(`People: ${t.auto_people.join(", ")}`);
@@ -150,7 +151,7 @@ const ExploreTool = CreateCompoundTool(
 
         const meta = t.metadata as Record<string, unknown> | null;
         if (meta) {
-          if (meta.source_url) parts.push(`Source URL: ${meta.source_url}`);
+          if (!t.source_url && meta.url) parts.push(`Source URL: ${meta.url}`);
           if (meta.title) parts.push(`Title: ${meta.title}`);
           if (meta.original_filename) parts.push(`File: ${meta.original_filename}`);
           if (meta.wasabi_key) parts.push(`Storage key: ${meta.wasabi_key}`);

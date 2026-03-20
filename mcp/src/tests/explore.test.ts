@@ -23,6 +23,7 @@ const fakeThought = {
   life_area: "craft",
   auto_life_area: "craft",
   source_channel: "mcp",
+  source_url: null,
   auto_type: null,
   auto_topics: null,
   confidence: null,
@@ -148,8 +149,9 @@ describe("explore tool", () => {
           id: "t-etf",
           text: "Anthropic ETF article",
           thought_type: "reference",
+          source_url: "https://motleyfool.com/article/123",
           metadata: {
-            source_url: "https://motleyfool.com/article/123",
+            url: "https://motleyfool.com/article/123",
             title: "Anthropic ETF Article",
             content_length: 5000,
           },

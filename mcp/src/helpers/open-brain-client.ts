@@ -28,6 +28,7 @@ interface Thought {
   life_area: string | null;
   auto_life_area: string | null;
   source_channel: string;
+  source_url: string | null;
   auto_type: string | null;
   auto_topics: string[] | null;
   confidence: number | null;
