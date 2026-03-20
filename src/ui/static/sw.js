@@ -1,4 +1,4 @@
-const CACHE_NAME = 'open-brain-v1';
+const CACHE_NAME = 'open-brain-v2';
 const STATIC_ASSETS = [
   '/open-brain/ui/static/js/components/open-brain-chat.js',
   'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js',
@@ -23,8 +23,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // API calls: network-first
-  if (event.request.url.includes('/thoughts')) {
+  // API calls: network-only (thoughts, documents, preferences, topics)
+  const isApi = event.request.url.includes('/thoughts')
+    || event.request.url.includes('/documents')
+    || event.request.url.includes('/preferences')
+    || event.request.url.includes('/topics')
+    || event.request.method !== 'GET';
+
+  if (isApi) {
     event.respondWith(
       fetch(event.request).catch(() => {
         if (event.request.method === 'POST') {

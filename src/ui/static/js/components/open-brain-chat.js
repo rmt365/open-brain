@@ -1029,7 +1029,15 @@ class OpenBrainChat extends LitElement {
         return;
       }
 
-      const result = await resp.json();
+      const responseText = await resp.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error('[Chat:Upload] Response not valid JSON:', responseText.substring(0, 500));
+        this._addMsg('error', `Server returned invalid response (HTTP ${resp.status})`);
+        return;
+      }
 
       if (result.success && result.data) {
         const ext = result.data.extraction;
