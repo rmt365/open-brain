@@ -86,11 +86,25 @@ export function createDocumentRoutes(
         metadata.extraction = extraction;
       }
 
-      // Upload to Wasabi (if configured)
-      // We create a placeholder ID first, then update after thought creation
+      // Upload to Wasabi BEFORE creating thought so metadata is complete in one write.
+      // Use a pre-generated ID for the Wasabi key path.
       let wasabiKey: string | null = null;
+      const preId = crypto.randomUUID();
 
-      // Create thought (captures immediately, embeds/classifies async)
+      if (storage) {
+        try {
+          wasabiKey = await storage.upload(preId, filename, fileData, file.type);
+          metadata.wasabi_key = wasabiKey;
+          metadata.wasabi_url = storage.getUrl(wasabiKey);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[OpenBrain:DocUpload] Wasabi upload failed (thought still saved): ${msg}`);
+        }
+      } else {
+        console.warn("[OpenBrain:DocUpload] Wasabi not configured, skipping document storage");
+      }
+
+      // Create thought with complete metadata (including wasabi_key if upload succeeded)
       const thought = await manager.capture(
         thoughtText,
         sourceChannel as "api" | "web" | "telegram" | "mcp",
@@ -99,26 +113,6 @@ export function createDocumentRoutes(
         undefined,
         lifeArea
       );
-
-      // Upload original to Wasabi after thought creation (so we have the ID)
-      if (storage) {
-        try {
-          wasabiKey = await storage.upload(thought.id, filename, fileData, file.type);
-          metadata.wasabi_key = wasabiKey;
-          metadata.wasabi_url = storage.getUrl(wasabiKey);
-          // Update thought metadata with storage info
-          manager.updateMetadata(thought.id, metadata);
-          // Verify the write persisted
-          const verify = manager.get(thought.id);
-          const hasKey = !!(verify?.metadata as Record<string, unknown> | null)?.wasabi_key;
-          console.log(`[OpenBrain:DocUpload] Metadata updated for ${thought.id}, wasabi_key=${wasabiKey}, verified=${hasKey}`);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[OpenBrain:DocUpload] Wasabi upload failed (thought still saved): ${msg}`);
-        }
-      } else {
-        console.warn("[OpenBrain:DocUpload] Wasabi not configured, skipping document storage");
-      }
 
       return c.json({
         success: true,
