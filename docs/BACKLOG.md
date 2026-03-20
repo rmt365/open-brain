@@ -271,6 +271,141 @@ context_queries:
 
 ---
 
+### OB-010: Knowledge-Core Extraction Audit (BoW + Open Brain + BoB)
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-010 |
+| **Status** | proposed |
+| **Priority** | high |
+| **Added** | Mar 20, 2026 |
+
+Audit three codebases (BoW, Open Brain, BoB) to identify shared functionality for extraction into a `@cerulean/knowledge-core` package. Deliverable is a comparison document, not code changes.
+
+**Systems:**
+- **BoW (Body of Work)** — content corpus for authors. Most mature. Audio transcription, document ingestion, public/private queries, scoped token access.
+- **Open Brain** — personal knowledge vault. Text/URL/document ingestion, MCP interface, SQLite per user.
+- **BoB (Body of Business)** — organizational knowledge. Append-only, auditable, role-scoped writes. Not primary focus.
+
+**Audit areas for each system:**
+1. Ingestion adapters — input types, processing pipelines, code locations
+2. Chunking strategy — splitting logic, per-chunk metadata, configurability
+3. Embedding — model/service, call site, storage format
+4. SQLite schema — full schema, partitioning, access control fields
+5. Retrieval — end-to-end query flow, search implementation (vector/FTS/hybrid), response shape
+6. MCP interface — exposed tools/resources, input/output shapes
+7. Access control — read/write controls, partition/scope concepts
+
+**Output:** Comparison matrix rating each area as IDENTICAL, SIMILAR, DIVERGENT, or UNIQUE. Flag product differences (preserve) vs accidental divergence (reconcile).
+
+**Constraints:** Audit only — no code changes.
+
+---
+
+### OB-011: Adaptive Output Rendering System
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-011 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Mar 20, 2026 |
+
+Build a presentation-hint-driven rendering system for knowledge query results. LLM returns a `presentation` hint with each response; a component registry renders the appropriate format.
+
+**Presentation hints:** prose, table, cards, timeline, graph, mixed
+
+**Architecture:**
+- Decision layer: LLM returns `{ content, presentation, rationale }` with each query result
+- Rendering layer: component registry maps hints to Lit web components (not React — per CLAUDE.md)
+- Mode modulation: each component accepts `mode` prop (capture | conversation | structure) affecting density/interactivity
+
+**Phased delivery:**
+- Phase 1: ProseComponent, DataTableComponent, CardGridComponent
+- Phase 2: TimelineComponent
+- Phase 3: GraphComponent, Compositor (only when real use cases demand it)
+
+**Requirements:**
+- Standardized TypeScript interfaces per content type (ProseContent, TableContent, CardContent, TimelineContent)
+- Every component handles loading, error, and empty states
+- Fallback to prose when hint is missing or unrecognized
+
+**Constraints:** Components do not fetch their own data. No coupling to knowledge-core data model — accept standardized content interfaces only.
+
+---
+
+### OB-012: Update, Versioning, and External Write System
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-012 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Mar 20, 2026 |
+
+Implement three update scenarios: user updates to captured knowledge, re-ingestion of updated sources, and external party writes.
+
+**Core principle:** Capture is additive. Updates are explicit and auditable. External writes are immutable from user's perspective.
+
+**Scenario 1 — User updates:**
+- CORRECTION: update in place, preserve previous value in versions
+- REFINEMENT: new version marked as current, previous version retrievable
+- EXTENSION: new capture linked via parent_id, both retrievable independently
+- Version schema: source_id (groups versions), version number, is_current, update_type
+
+**Scenario 2 — Source re-ingestion:**
+- Identify existing chunks by source_id, delete old set atomically, ingest fresh
+- No chunk-level diffing — replace as unit
+
+**Scenario 3 — External writes:**
+- External parties write to designated partition only
+- Records are immutable — user cannot edit, only read or revoke access
+- Every external write logged (who, what, when, access token used)
+- Revoking access does not delete existing records
+
+**API endpoints:** PATCH /knowledge/:id, POST /knowledge/:id/extend, POST /knowledge/sources/:source_id/reingest, POST/GET/DELETE for partition records and access
+
+**Audit trail:** Append-only log of all writes. Never deleted or updated.
+
+**UI components needed:** DiffView, VersionHistory, ExternalRecordCard, AuditLog
+
+**Depends on:** OB-011 (rendering components)
+
+---
+
+### OB-013: Grant Management System
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-013 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Mar 20, 2026 |
+
+Build a conversational grant management system for controlling external access to the vault. All grant management happens through the chat interface — no separate admin panel.
+
+**Core principle:** User is sole authority. Grants are explicit, scoped, and revocable. No OAuth. User directly issues tokens with defined manifests.
+
+**Four tools (chat-only, never exposed to external parties):**
+- `issue_grant` — create signed token with embedded tool manifest (displayed once only)
+- `list_grants` — all active grants with scope and usage summary (renders as CardGrid)
+- `check_usage` — audit trail for specific grant or party (renders as Timeline)
+- `revoke_grant` — invalidate token, preserve audit history and written records
+
+**Confirmation flow:** All state-changing operations (issue, revoke) require explicit user confirmation via LLM before execution.
+
+**Token security:**
+- HMAC-SHA256 signed tokens with embedded manifest
+- Server validates signature AND manifest on every request
+- Raw token never stored — issued once at creation, lost = revoke and reissue
+- Expiry enforced at request time
+
+**LLM routing:** System prompt includes example intents for issue, list, check usage, and revoke patterns.
+
+**Depends on:** OB-012 (external write system, audit trail), OB-011 (rendering components)
+
+---
+
 ### OB-005: Background Async Classification (Non-blocking Capture)
 
 | Field | Value |
