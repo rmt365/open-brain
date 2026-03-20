@@ -108,6 +108,10 @@ export function createDocumentRoutes(
           metadata.wasabi_url = storage.getUrl(wasabiKey);
           // Update thought metadata with storage info
           manager.updateMetadata(thought.id, metadata);
+          // Verify the write persisted
+          const verify = manager.get(thought.id);
+          const hasKey = !!(verify?.metadata as Record<string, unknown> | null)?.wasabi_key;
+          console.log(`[OpenBrain:DocUpload] Metadata updated for ${thought.id}, wasabi_key=${wasabiKey}, verified=${hasKey}`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.warn(`[OpenBrain:DocUpload] Wasabi upload failed (thought still saved): ${msg}`);
