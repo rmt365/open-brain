@@ -23,6 +23,7 @@ export interface ServiceConfig {
   basePath: string;
   apiKey: string | null;
   wasabi: WasabiConfig | null;
+  instanceName: string;
 }
 
 export interface RawConfig {
@@ -34,6 +35,7 @@ export interface RawConfig {
   basePath: string;
   apiKey: string | null;
   wasabi: WasabiConfig | null;
+  instanceName: string;
 }
 
 /**
@@ -66,5 +68,6 @@ export function readRawConfig(): RawConfig {
     basePath: Deno.env.get("BASE_PATH") || "",
     apiKey: Deno.env.get("OPEN_BRAIN_API_KEY") || null,
     wasabi,
+    instanceName: Deno.env.get("INSTANCE_NAME") || "default",
   };
 }

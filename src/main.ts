@@ -40,6 +40,7 @@ const config: ServiceConfig = {
   basePath: raw.basePath,
   apiKey: raw.apiKey,
   wasabi: raw.wasabi,
+  instanceName: raw.instanceName,
 };
 
 // Log configuration

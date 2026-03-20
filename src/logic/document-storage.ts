@@ -7,8 +7,9 @@ import type { WasabiConfig } from "../config.ts";
 export class DocumentStorage {
   private client: S3Client;
   private bucket: string;
+  private instanceName: string;
 
-  constructor(config: WasabiConfig) {
+  constructor(config: WasabiConfig, instanceName: string) {
     this.client = new S3Client({
       endpoint: config.endpoint,
       region: config.region,
@@ -19,11 +20,12 @@ export class DocumentStorage {
       forcePathStyle: true,
     });
     this.bucket = config.bucket;
+    this.instanceName = instanceName;
   }
 
   /**
    * Upload a document to Wasabi.
-   * Key structure: documents/{year}/{month}/{thoughtId}/{filename}
+   * Key structure: {instance}/documents/{year}/{month}/{thoughtId}/{filename}
    */
   async upload(
     thoughtId: string,
@@ -34,7 +36,7 @@ export class DocumentStorage {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
-    const key = `documents/${year}/${month}/${thoughtId}/${filename}`;
+    const key = `${this.instanceName}/documents/${year}/${month}/${thoughtId}/${filename}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,

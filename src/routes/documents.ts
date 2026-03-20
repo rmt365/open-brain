@@ -26,7 +26,7 @@ export function createDocumentRoutes(
   config: ServiceConfig
 ): Hono {
   const app = new Hono();
-  const storage = config.wasabi ? new DocumentStorage(config.wasabi) : null;
+  const storage = config.wasabi ? new DocumentStorage(config.wasabi, config.instanceName) : null;
 
   app.post("/upload", async (c) => {
     try {
