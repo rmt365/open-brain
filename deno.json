@@ -4,8 +4,8 @@
     "lib": ["deno.ns", "deno.window"]
   },
   "tasks": {
-    "start": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-import src/main.ts",
-    "dev": "deno run --watch --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-import src/main.ts",
+    "start": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-sys --allow-import src/main.ts",
+    "dev": "deno run --watch --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-sys --allow-import src/main.ts",
     "check": "deno check src/main.ts",
     "verify": "deno check src/main.ts && deno lint src/ && deno test --allow-all src/tests/"
   },

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-DENO_CMD="deno run --config=deno.json --allow-net --allow-read --allow-write --allow-env --allow-ffi src/main.ts"
+DENO_CMD="deno run --config=deno.json --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys src/main.ts"
 
 if [ "$ENABLE_LITESTREAM" = "true" ] && [ -n "$WASABI_BUCKET" ] && [ -n "$WASABI_ACCESS_KEY_ID" ]; then
   echo "[entrypoint] Generating Litestream config..."
