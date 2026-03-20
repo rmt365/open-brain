@@ -120,6 +120,7 @@ export function createDocumentRoutes(
           thought_id: thought.id,
           extraction,
           wasabi_key: wasabiKey,
+          wasabi_configured: !!storage,
           filename,
         },
       }, 201);

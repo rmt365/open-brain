@@ -1052,7 +1052,7 @@ class OpenBrainChat extends LitElement {
 
         if (result.success && result.data) {
           const ext = result.data.extraction;
-          const docOpts = result.data.wasabi_key ? {
+          const docOpts = result.data.thought_id ? {
             documentUrl: `${BASE_PATH}/documents/${result.data.thought_id}`,
             documentMimeType: file.type,
             documentFilename: file.name || 'document',
