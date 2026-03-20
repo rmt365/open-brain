@@ -26,7 +26,7 @@ class OpenBrainChat extends LitElement {
     _prefLoading: { type: Boolean, state: true },
     _prefEditing: { type: String, state: true },
     _prefFormData: { type: Object, state: true },
-    _pendingFile: { type: Object, state: true },
+    _pendingFiles: { type: Array, state: true },
     _lightboxSrc: { type: String, state: true },
   };
 
@@ -852,7 +852,7 @@ class OpenBrainChat extends LitElement {
     this._prefEditing = null;
     this._showSettings = false;
     this._prefFormData = null;
-    this._pendingFile = null;
+    this._pendingFiles = [];
     this._lightboxSrc = null;
   }
 
@@ -954,33 +954,40 @@ class OpenBrainChat extends LitElement {
   }
 
   _onFileSelected(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!allowed.includes(file.type)) {
-      this._addMsg('error', 'Unsupported file type. Use JPEG, PNG, WebP, or PDF.');
-      e.target.value = '';
-      return;
+    const valid = [];
+    for (const file of files) {
+      if (!allowed.includes(file.type)) {
+        this._addMsg('error', `Skipped ${file.name}: unsupported type. Use JPEG, PNG, WebP, or PDF.`);
+        continue;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        this._addMsg('error', `Skipped ${file.name}: too large (max 20MB).`);
+        continue;
+      }
+      valid.push(file);
     }
 
-    if (file.size > 20 * 1024 * 1024) {
-      this._addMsg('error', 'File too large. Maximum size is 20MB.');
-      e.target.value = '';
-      return;
+    if (valid.length) {
+      this._pendingFiles = [...this._pendingFiles, ...valid];
     }
-
-    this._pendingFile = file;
     e.target.value = '';
   }
 
-  _clearPendingFile() {
-    this._pendingFile = null;
+  _clearPendingFiles() {
+    this._pendingFiles = [];
+  }
+
+  _removePendingFile(index) {
+    this._pendingFiles = this._pendingFiles.filter((_, i) => i !== index);
   }
 
   async _uploadDocument() {
-    const file = this._pendingFile;
-    if (!file) return;
+    const files = [...this._pendingFiles];
+    if (!files.length) return;
 
     if (!this.online) {
       this._addMsg('error', 'Document upload requires an internet connection.');
@@ -988,10 +995,10 @@ class OpenBrainChat extends LitElement {
     }
 
     const contextText = this.inputText.trim();
-    const displayName = file.name || 'document';
+    const names = files.map(f => f.name || 'document');
     const userText = contextText
-      ? `[Uploaded: ${displayName}] ${contextText}`
-      : `[Uploaded: ${displayName}]`;
+      ? `[Uploaded: ${names.join(', ')}] ${contextText}`
+      : `[Uploaded: ${names.join(', ')}]`;
 
     this.messages = [...this.messages, {
       type: 'user',
@@ -1000,77 +1007,82 @@ class OpenBrainChat extends LitElement {
     }];
 
     this.inputText = '';
-    this._pendingFile = null;
+    this._pendingFiles = [];
     this.loading = true;
 
     const textarea = this.renderRoot.querySelector('textarea');
     if (textarea) textarea.style.height = 'auto';
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('source_channel', 'web');
-      if (contextText) formData.append('context', contextText);
-      if (this.user) formData.append('metadata_user', this.user);
+    const headers = {};
+    const apiKey = this._getApiKey();
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
-      const headers = {};
-      const apiKey = this._getApiKey();
-      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const progress = files.length > 1 ? ` (${i + 1}/${files.length})` : '';
 
-      const resp = await fetch(`${BASE_PATH}/documents/upload`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      if (resp.status === 401) {
-        this._showApiKeyDialog = true;
-        this._addMsg('error', 'API key required.');
-        return;
-      }
-
-      const responseText = await resp.text();
-      let result;
       try {
-        result = JSON.parse(responseText);
-      } catch (parseErr) {
-        console.error('[Chat:Upload] Response not valid JSON:', responseText.substring(0, 500));
-        this._addMsg('error', `Server returned invalid response (HTTP ${resp.status})`);
-        return;
-      }
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('source_channel', 'web');
+        if (contextText) formData.append('context', contextText);
+        if (this.user) formData.append('metadata_user', this.user);
 
-      if (result.success && result.data) {
-        const ext = result.data.extraction;
-        const docOpts = result.data.thought_id ? {
-          documentUrl: `${BASE_PATH}/documents/${result.data.thought_id}`,
-          documentMimeType: file.type,
-          documentFilename: file.name || 'document',
-        } : {};
-        if (ext) {
-          const parts = [`**${ext.title}**`];
-          parts.push(`Type: ${ext.document_type}`);
-          if (ext.vendor) parts.push(`Vendor: ${ext.vendor}`);
-          if (ext.total_amount) parts.push(`Amount: ${ext.total_amount}`);
-          if (ext.date) parts.push(`Date: ${ext.date}`);
-          if (ext.extracted_text) {
-            const preview = ext.extracted_text.length > 300
-              ? ext.extracted_text.substring(0, 300) + '...'
-              : ext.extracted_text;
-            parts.push(`\n${preview}`);
-          }
-          this._addMsg('system', parts.join('\n'), { markdown: true, ...docOpts });
-        } else {
-          this._addMsg('system', 'Document uploaded and saved.', { markdown: true, ...docOpts });
+        const resp = await fetch(`${BASE_PATH}/documents/upload`, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+
+        if (resp.status === 401) {
+          this._showApiKeyDialog = true;
+          this._addMsg('error', 'API key required.');
+          break;
         }
-      } else {
-        this._addMsg('error', result.error || 'Upload failed.');
+
+        const responseText = await resp.text();
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseErr) {
+          console.error('[Chat:Upload] Response not valid JSON:', responseText.substring(0, 500));
+          this._addMsg('error', `${file.name}${progress}: server returned invalid response`);
+          continue;
+        }
+
+        if (result.success && result.data) {
+          const ext = result.data.extraction;
+          const docOpts = result.data.thought_id ? {
+            documentUrl: `${BASE_PATH}/documents/${result.data.thought_id}`,
+            documentMimeType: file.type,
+            documentFilename: file.name || 'document',
+          } : {};
+          if (ext) {
+            const parts = [`**${ext.title}**${progress}`];
+            parts.push(`Type: ${ext.document_type}`);
+            if (ext.vendor) parts.push(`Vendor: ${ext.vendor}`);
+            if (ext.total_amount) parts.push(`Amount: ${ext.total_amount}`);
+            if (ext.date) parts.push(`Date: ${ext.date}`);
+            if (ext.extracted_text) {
+              const preview = ext.extracted_text.length > 300
+                ? ext.extracted_text.substring(0, 300) + '...'
+                : ext.extracted_text;
+              parts.push(`\n${preview}`);
+            }
+            this._addMsg('system', parts.join('\n'), { markdown: true, ...docOpts });
+          } else {
+            this._addMsg('system', `${file.name}${progress}: uploaded and saved.`, { markdown: true, ...docOpts });
+          }
+        } else {
+          this._addMsg('error', `${file.name}${progress}: ${result.error || 'Upload failed.'}`);
+        }
+      } catch (err) {
+        this._addMsg('error', `${file.name}${progress}: ${err.message || 'Network error'}`);
       }
-    } catch (err) {
-      this._addMsg('error', err.message || 'Network error during upload');
-    } finally {
-      this.loading = false;
-      this._saveMessageHistory();
     }
+
+    this.loading = false;
+    this._saveMessageHistory();
   }
 
   /** Shared POST helper — handles auth, content-type, and error responses. */
@@ -1095,8 +1107,8 @@ class OpenBrainChat extends LitElement {
   }
 
   async _send() {
-    // If there's a pending file, upload it instead
-    if (this._pendingFile) {
+    // If there are pending files, upload them instead
+    if (this._pendingFiles.length > 0) {
       return this._uploadDocument();
     }
 
@@ -1689,7 +1701,7 @@ class OpenBrainChat extends LitElement {
 
   render() {
     const hasMessages = this.messages.length > 0;
-    const canSend = (this.inputText.trim().length > 0 || this._pendingFile) && !this.loading;
+    const canSend = (this.inputText.trim().length > 0 || this._pendingFiles.length > 0) && !this.loading;
 
     return html`
       <div class="header">
@@ -1747,6 +1759,7 @@ class OpenBrainChat extends LitElement {
         <input
           id="doc-file-input"
           type="file"
+          multiple
           accept="image/jpeg,image/png,image/webp,application/pdf"
           style="display:none"
           @change=${this._onFileSelected}
@@ -1761,15 +1774,17 @@ class OpenBrainChat extends LitElement {
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path>
           </svg>
         </button>
-        ${this._pendingFile ? html`
+        ${this._pendingFiles.length > 0 ? html`
           <div class="file-preview">
-            <span class="file-name">${this._pendingFile.name}</span>
-            <button class="file-remove" @click=${this._clearPendingFile} title="Remove file">&times;</button>
+            <span class="file-name">${this._pendingFiles.length === 1
+              ? this._pendingFiles[0].name
+              : `${this._pendingFiles.length} files`}</span>
+            <button class="file-remove" @click=${this._clearPendingFiles} title="Remove all files">&times;</button>
           </div>
         ` : ''}
         <textarea
           rows="1"
-          placeholder="${this._pendingFile ? 'Add context (optional)...' : 'Capture a thought or ? to ask...'}"
+          placeholder="${this._pendingFiles.length > 0 ? 'Add context (optional)...' : 'Capture a thought or ? to ask...'}"
           .value=${this.inputText}
           @input=${this._autoGrow}
           @keydown=${this._handleKeydown}
