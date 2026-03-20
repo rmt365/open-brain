@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { extractUrls, isUrlOnlyMessage } from "../logic/url-detection.ts";
 
 Deno.test("extractUrls: finds https URL", () => {

@@ -8,6 +8,7 @@ import FindRelatedTool from "./find-related.js";
 import ListTopicsTool from "./list-topics.js";
 import ManageTopicsTool from "./manage-topics.js";
 import IngestUrlTool from "./ingest-url.js";
+import IngestDocumentTool from "./ingest-document.js";
 import SurfaceForgottenTool from "./surface-forgotten.js";
 import GetTasteProfileTool from "./get-taste-profile.js";
 import {
@@ -32,6 +33,7 @@ const AllTools = [
   ListTopicsTool,
   ManageTopicsTool,
   IngestUrlTool,
+  IngestDocumentTool,
   SurfaceForgottenTool,
   GetTasteProfileTool,
   AddPreferenceTool,

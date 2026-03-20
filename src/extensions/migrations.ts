@@ -1,7 +1,7 @@
 // Extension migration runner
 // Runs each extension's migrations using the shared MigrationManager
 
-import type { Database } from "jsr:@db/sqlite@0.12";
+import type { Database } from "@db/sqlite";
 import { MigrationManager } from "@p2b/db-core";
 import type { ExtensionRegistration } from "./types.ts";
 

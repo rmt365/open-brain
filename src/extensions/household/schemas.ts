@@ -1,6 +1,6 @@
 // Household Knowledge extension — Zod validation schemas
 
-import { z } from "npm:zod@3";
+import { z } from "zod";
 
 export const CreateItemSchema = z.object({
   name: z.string().min(1),

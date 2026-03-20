@@ -39,6 +39,7 @@ const config: ServiceConfig = {
   },
   basePath: raw.basePath,
   apiKey: raw.apiKey,
+  wasabi: raw.wasabi,
 };
 
 // Log configuration
@@ -48,6 +49,7 @@ console.log(`[open-brain] Ollama URL: ${raw.ollamaUrl}`);
 console.log(`[open-brain] Embedding model: ${raw.embeddingModel}`);
 console.log(`[open-brain] Base path: ${raw.basePath || "(none - standalone mode)"}`);
 console.log(`[open-brain] API key auth: ${raw.apiKey ? "enabled" : "disabled"}`);
+console.log(`[open-brain] Document storage (Wasabi): ${raw.wasabi ? "configured" : "disabled"}`);
 
 // Bootstrap the service with health checks and degraded mode support
 await bootstrapService({

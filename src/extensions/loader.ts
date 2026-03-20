@@ -1,8 +1,8 @@
 // Extension auto-discovery
 // Scans src/extensions/*/mod.ts for extension register functions
 
-import { join } from "jsr:@std/path@^1.0.8";
-import { existsSync } from "jsr:@std/fs@^1.0.5";
+import { join } from "@std/path";
+import { existsSync } from "std/fs";
 import type { ExtensionContext, ExtensionRegistration } from "./types.ts";
 
 export async function discoverExtensions(

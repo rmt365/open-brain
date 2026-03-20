@@ -374,6 +374,14 @@ export class ThoughtManager {
     return this.db.deleteThought(id);
   }
 
+  /** Update metadata on an existing thought (merges with existing). */
+  updateMetadata(id: string, metadata: Record<string, unknown>): void {
+    const thought = this.db.getThought(id);
+    if (!thought) return;
+    const merged = { ...(thought.metadata || {}), ...metadata };
+    this.db.updateThought(id, { metadata: merged });
+  }
+
   // ============================================================
   // RE-PROCESSING
   // ============================================================

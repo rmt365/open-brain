@@ -128,6 +128,38 @@ export async function extractPreference(
   });
 }
 
+export async function uploadDocument(
+  baseUrl: string,
+  fileData: Uint8Array,
+  filename: string,
+  mimeType: string,
+  context?: string,
+): Promise<ApiResponse<{ thought_id: string; extraction: Record<string, unknown> | null; wasabi_key: string | null; filename: string }>> {
+  const formData = new FormData();
+  formData.append("file", new Blob([fileData], { type: mimeType }), filename);
+  formData.append("source_channel", "telegram");
+  if (context) formData.append("context", context);
+
+  const url = `${baseUrl}/documents/upload`;
+  const headers: Record<string, string> = {};
+  if (API_KEY) {
+    headers["Authorization"] = `Bearer ${API_KEY}`;
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Open Brain API error (${response.status}): ${body}`);
+  }
+
+  return response.json();
+}
+
 export async function listThoughts(
   baseUrl: string,
   limit?: number,

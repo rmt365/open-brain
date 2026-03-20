@@ -1,7 +1,7 @@
 // Open Brain - Ollama LLM Provider
 // For local LLM inference (future use when local classification is ready)
 
-import type { LLMProvider } from "./types.ts";
+import type { LLMProvider, ContentBlock } from "./types.ts";
 
 export interface OllamaProviderConfig {
   baseUrl: string;
@@ -64,5 +64,14 @@ export class OllamaProvider implements LLMProvider {
       console.error(`[OpenBrain:Ollama] Completion failed: ${msg}`);
       return null;
     }
+  }
+
+  async completeWithMedia(
+    _system: string,
+    _content: ContentBlock[],
+    _model?: string
+  ): Promise<string | null> {
+    console.warn("[OpenBrain:Ollama] completeWithMedia not supported, skipping");
+    return null;
   }
 }

@@ -5,7 +5,7 @@ import {
   assertEquals,
   assertExists,
   assertNotEquals,
-} from "jsr:@std/assert";
+} from "@std/assert";
 import { Hono } from "@hono/hono";
 
 import { createLLMProvider } from "../logic/llm/factory.ts";
@@ -26,6 +26,13 @@ class MockLLMProvider implements LLMProvider {
   async complete(
     _system: string,
     _user: string,
+    _model?: string
+  ): Promise<string | null> {
+    return this.response;
+  }
+  async completeWithMedia(
+    _system: string,
+    _content: import("../logic/llm/types.ts").ContentBlock[],
     _model?: string
   ): Promise<string | null> {
     return this.response;

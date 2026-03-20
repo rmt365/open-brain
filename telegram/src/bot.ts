@@ -5,6 +5,7 @@ import { handleRecent } from "./handlers/recent.ts";
 import { handleSetup } from "./handlers/setup.ts";
 import { handleAsk } from "./handlers/ask.ts";
 import { handlePref } from "./handlers/pref.ts";
+import { handleDocument } from "./handlers/document.ts";
 
 /**
  * Check if a user is allowed to use the bot.
@@ -78,6 +79,10 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
 
   // /setup command
   bot.command("setup", (ctx) => handleSetup(ctx));
+
+  // Photo and document handlers (before default text handler)
+  bot.on("message:photo", (ctx) => handleDocument(ctx, openBrainUrl));
+  bot.on("message:document", (ctx) => handleDocument(ctx, openBrainUrl));
 
   // Default text handler -- capture as thought
   bot.on("message:text", (ctx) => handleCapture(ctx, openBrainUrl));

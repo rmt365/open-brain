@@ -266,6 +266,54 @@ export async function ingestUrl(
 }
 
 // ============================================================
+// DOCUMENT UPLOAD
+// ============================================================
+
+export async function uploadDocument(
+  fileDataBase64: string,
+  filename: string,
+  mimeType: string,
+  lifeArea?: string,
+  context?: string,
+): Promise<ApiResponse<{
+  thought_id: string;
+  extraction: Record<string, unknown> | null;
+  wasabi_key: string | null;
+  filename: string;
+}>> {
+  const binaryStr = atob(fileDataBase64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+
+  const formData = new FormData();
+  formData.append("file", new Blob([bytes], { type: mimeType }), filename);
+  formData.append("source_channel", "mcp");
+  if (lifeArea) formData.append("life_area", lifeArea);
+  if (context) formData.append("context", context);
+
+  const url = `${BASE_URL}/documents/upload`;
+  const headers: Record<string, string> = {};
+  if (API_KEY) {
+    headers["Authorization"] = `Bearer ${API_KEY}`;
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Open Brain API error: POST /documents/upload → ${response.status}: ${body}`);
+  }
+
+  return response.json();
+}
+
+// ============================================================
 // SURFACING FORGOTTEN THOUGHTS
 // ============================================================
 

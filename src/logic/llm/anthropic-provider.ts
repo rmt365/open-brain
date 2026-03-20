@@ -2,7 +2,7 @@
 // Direct SDK integration, no AI Gateway dependency
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { LLMProvider } from "./types.ts";
+import type { LLMProvider, ContentBlock } from "./types.ts";
 
 export interface AnthropicProviderConfig {
   apiKey: string;
@@ -59,6 +59,68 @@ export class AnthropicProvider implements LLMProvider {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[OpenBrain:Anthropic] Completion failed: ${msg}`);
+      return null;
+    }
+  }
+
+  async completeWithMedia(
+    system: string,
+    content: ContentBlock[],
+    model?: string
+  ): Promise<string | null> {
+    const resolvedModel = model ?? this.defaultModel;
+
+    try {
+      // Build Anthropic content blocks from our generic format
+      const anthropicContent: Anthropic.ContentBlockParam[] = content.map((block) => {
+        if (block.type === "text") {
+          return { type: "text" as const, text: block.text };
+        }
+        if (block.type === "image") {
+          return {
+            type: "image" as const,
+            source: {
+              type: "base64" as const,
+              media_type: block.media_type as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+              data: block.data,
+            },
+          };
+        }
+        // document (PDF)
+        return {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data: block.data,
+          },
+        };
+      });
+
+      console.log(
+        `[OpenBrain:Anthropic] Calling ${resolvedModel} with media (${content.length} blocks)`
+      );
+
+      const response = await this.client.messages.create({
+        model: resolvedModel,
+        max_tokens: 2000,
+        temperature: this.temperature,
+        system,
+        messages: [{ role: "user", content: anthropicContent }],
+      });
+
+      const firstBlock = response.content[0];
+      if (firstBlock && firstBlock.type === "text") {
+        return firstBlock.text;
+      }
+
+      console.warn(
+        `[OpenBrain:Anthropic] Unexpected response content type: ${firstBlock?.type}`
+      );
+      return null;
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[OpenBrain:Anthropic] Media completion failed: ${msg}`);
       return null;
     }
   }

@@ -26,6 +26,7 @@ class OpenBrainChat extends LitElement {
     _prefLoading: { type: Boolean, state: true },
     _prefEditing: { type: String, state: true },
     _prefFormData: { type: Object, state: true },
+    _pendingFile: { type: Object, state: true },
   };
 
   static styles = css`
@@ -354,6 +355,64 @@ class OpenBrainChat extends LitElement {
     .send-btn svg {
       width: 20px;
       height: 20px;
+    }
+
+    .upload-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .upload-btn:hover {
+      color: var(--accent);
+    }
+
+    .upload-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .file-preview {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: rgba(129, 140, 248, 0.1);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .file-preview .file-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 200px;
+    }
+
+    .file-preview .file-remove {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .file-preview .file-remove:hover {
+      color: #ef4444;
     }
 
     /* Offline banner */
@@ -764,6 +823,7 @@ class OpenBrainChat extends LitElement {
     this._prefEditing = null;
     this._showSettings = false;
     this._prefFormData = null;
+    this._pendingFile = null;
   }
 
   connectedCallback() {
@@ -858,6 +918,118 @@ class OpenBrainChat extends LitElement {
     return { isQuery: false, isPref: false, content: text };
   }
 
+  _triggerFileInput() {
+    const input = this.renderRoot.querySelector('#doc-file-input');
+    if (input) input.click();
+  }
+
+  _onFileSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.type)) {
+      this._addMsg('error', 'Unsupported file type. Use JPEG, PNG, WebP, or PDF.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      this._addMsg('error', 'File too large. Maximum size is 20MB.');
+      e.target.value = '';
+      return;
+    }
+
+    this._pendingFile = file;
+    e.target.value = '';
+  }
+
+  _clearPendingFile() {
+    this._pendingFile = null;
+  }
+
+  async _uploadDocument() {
+    const file = this._pendingFile;
+    if (!file) return;
+
+    if (!this.online) {
+      this._addMsg('error', 'Document upload requires an internet connection.');
+      return;
+    }
+
+    const contextText = this.inputText.trim();
+    const displayName = file.name || 'document';
+    const userText = contextText
+      ? `[Uploaded: ${displayName}] ${contextText}`
+      : `[Uploaded: ${displayName}]`;
+
+    this.messages = [...this.messages, {
+      type: 'user',
+      text: userText,
+      timestamp: new Date().toISOString(),
+    }];
+
+    this.inputText = '';
+    this._pendingFile = null;
+    this.loading = true;
+
+    const textarea = this.renderRoot.querySelector('textarea');
+    if (textarea) textarea.style.height = 'auto';
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('source_channel', 'web');
+      if (contextText) formData.append('context', contextText);
+      if (this.user) formData.append('metadata_user', this.user);
+
+      const headers = {};
+      const apiKey = this._getApiKey();
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const resp = await fetch(`${BASE_PATH}/documents/upload`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (resp.status === 401) {
+        this._showApiKeyDialog = true;
+        this._addMsg('error', 'API key required.');
+        return;
+      }
+
+      const result = await resp.json();
+
+      if (result.success && result.data) {
+        const ext = result.data.extraction;
+        if (ext) {
+          const parts = [`**${ext.title}**`];
+          parts.push(`Type: ${ext.document_type}`);
+          if (ext.vendor) parts.push(`Vendor: ${ext.vendor}`);
+          if (ext.total_amount) parts.push(`Amount: ${ext.total_amount}`);
+          if (ext.date) parts.push(`Date: ${ext.date}`);
+          if (ext.extracted_text) {
+            const preview = ext.extracted_text.length > 300
+              ? ext.extracted_text.substring(0, 300) + '...'
+              : ext.extracted_text;
+            parts.push(`\n${preview}`);
+          }
+          this._addMsg('system', parts.join('\n'), { markdown: true });
+        } else {
+          this._addMsg('system', `Document uploaded and saved (extraction unavailable).`);
+        }
+      } else {
+        this._addMsg('error', result.error || 'Upload failed.');
+      }
+    } catch (err) {
+      this._addMsg('error', err.message || 'Network error during upload');
+    } finally {
+      this.loading = false;
+      this._saveMessageHistory();
+    }
+  }
+
   /** Shared POST helper — handles auth, content-type, and error responses. */
   async _apiPost(path, body) {
     const resp = await fetch(`${BASE_PATH}${path}`, {
@@ -880,6 +1052,11 @@ class OpenBrainChat extends LitElement {
   }
 
   async _send() {
+    // If there's a pending file, upload it instead
+    if (this._pendingFile) {
+      return this._uploadDocument();
+    }
+
     const text = this.inputText.trim();
     if (!text || this.loading) return;
 
@@ -1455,7 +1632,7 @@ class OpenBrainChat extends LitElement {
 
   render() {
     const hasMessages = this.messages.length > 0;
-    const canSend = this.inputText.trim().length > 0 && !this.loading;
+    const canSend = (this.inputText.trim().length > 0 || this._pendingFile) && !this.loading;
 
     return html`
       <div class="header">
@@ -1510,9 +1687,32 @@ class OpenBrainChat extends LitElement {
       `}
 
       <div class="input-area">
+        <input
+          id="doc-file-input"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          style="display:none"
+          @change=${this._onFileSelected}
+        />
+        <button
+          class="upload-btn"
+          @click=${this._triggerFileInput}
+          title="Upload document"
+          aria-label="Upload document"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path>
+          </svg>
+        </button>
+        ${this._pendingFile ? html`
+          <div class="file-preview">
+            <span class="file-name">${this._pendingFile.name}</span>
+            <button class="file-remove" @click=${this._clearPendingFile} title="Remove file">&times;</button>
+          </div>
+        ` : ''}
         <textarea
           rows="1"
-          placeholder="Capture a thought or ? to ask..."
+          placeholder="${this._pendingFile ? 'Add context (optional)...' : 'Capture a thought or ? to ask...'}"
           .value=${this.inputText}
           @input=${this._autoGrow}
           @keydown=${this._handleKeydown}
