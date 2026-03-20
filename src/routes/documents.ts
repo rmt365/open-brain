@@ -89,6 +89,7 @@ export function createDocumentRoutes(
       // Upload to Wasabi BEFORE creating thought so metadata is complete in one write.
       // Use a pre-generated ID for the Wasabi key path.
       let wasabiKey: string | null = null;
+      let wasabiError: string | null = null;
       const preId = crypto.randomUUID();
 
       if (storage) {
@@ -97,8 +98,8 @@ export function createDocumentRoutes(
           metadata.wasabi_key = wasabiKey;
           metadata.wasabi_url = storage.getUrl(wasabiKey);
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[OpenBrain:DocUpload] Wasabi upload failed (thought still saved): ${msg}`);
+          wasabiError = err instanceof Error ? err.message : String(err);
+          console.warn(`[OpenBrain:DocUpload] Wasabi upload failed (thought still saved): ${wasabiError}`);
         }
       } else {
         console.warn("[OpenBrain:DocUpload] Wasabi not configured, skipping document storage");
@@ -121,6 +122,7 @@ export function createDocumentRoutes(
           extraction,
           wasabi_key: wasabiKey,
           wasabi_configured: !!storage,
+          wasabi_error: wasabiError,
           filename,
         },
       }, 201);
