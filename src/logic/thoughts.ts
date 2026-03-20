@@ -16,6 +16,7 @@ import { classifyThought } from "./classifier.ts";
 import { extractUrlContent, type ExtractedContent } from "./extractor.ts";
 import { chunkText, needsChunking } from "./chunker.ts";
 import { extractUrls, isUrlOnlyMessage } from "./url-detection.ts";
+import { DocumentStorage } from "./document-storage.ts";
 
 /** Process items in chunks with bounded concurrency */
 export async function processInChunks<T>(
@@ -44,10 +45,14 @@ export async function processInChunks<T>(
 export class ThoughtManager {
   private db: OpenBrainDatabaseManager;
   private config: ServiceConfig;
+  private documentStorage: DocumentStorage | null;
 
   constructor(db: OpenBrainDatabaseManager, config: ServiceConfig) {
     this.db = db;
     this.config = config;
+    this.documentStorage = config.wasabi
+      ? new DocumentStorage(config.wasabi, config.instanceName)
+      : null;
   }
 
   // ============================================================
@@ -371,7 +376,20 @@ export class ThoughtManager {
     return this.db.updateThought(id, data);
   }
 
-  delete(id: string): boolean {
+  async delete(id: string): Promise<boolean> {
+    // Clean up Wasabi document if attached
+    if (this.documentStorage) {
+      const thought = this.db.getThought(id);
+      const wasabiKey = (thought?.metadata as Record<string, unknown> | null)?.wasabi_key as string | undefined;
+      if (wasabiKey) {
+        try {
+          await this.documentStorage.delete(wasabiKey);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[OpenBrain:Delete] Failed to delete document from Wasabi: ${msg}`);
+        }
+      }
+    }
     return this.db.deleteThought(id);
   }
 

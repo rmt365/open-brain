@@ -321,10 +321,10 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
   );
 
   // DELETE /:id — soft-delete a thought
-  router.delete("/:id", (c) => {
+  router.delete("/:id", async (c) => {
     try {
       const id = c.req.param("id");
-      const deleted = manager.delete(id);
+      const deleted = await manager.delete(id);
 
       if (!deleted) {
         return c.json<ApiResponse>(

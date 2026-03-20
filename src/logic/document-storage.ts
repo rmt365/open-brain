@@ -1,7 +1,7 @@
 // Open Brain - Document Storage Client
 // Thin wrapper around S3 for storing document originals in Wasabi
 
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import type { WasabiConfig } from "../config.ts";
 
 export class DocumentStorage {
@@ -78,6 +78,17 @@ export class DocumentStorage {
       contentType: response.ContentType || "application/octet-stream",
       contentLength: response.ContentLength || 0,
     };
+  }
+
+  /** Delete a document from Wasabi. */
+  async delete(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    await this.client.send(command);
+    console.log(`[OpenBrain:DocStorage] Deleted ${key}`);
   }
 
   /** Construct a reference URL for a stored document. */
