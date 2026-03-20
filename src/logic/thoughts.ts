@@ -259,14 +259,14 @@ export class ThoughtManager {
     const textResults = this.textSearch(query, thoughtType, limit);
 
     // Merge: use a map keyed by thought ID, combine scores
-    const merged = new Map<string, { thought: Thought; score: number; sources: string[] }>();
+    const merged = new Map<string, { thought: Thought; score: number; source: "semantic" | "text" | "both" }>();
 
     // Semantic results: similarity is 0-1
     for (const r of semanticResults) {
       merged.set(r.thought.id, {
         thought: r.thought,
         score: r.similarity,
-        sources: ["semantic"],
+        source: "semantic",
       });
     }
 
@@ -276,13 +276,13 @@ export class ThoughtManager {
       if (existing) {
         // Found in both — boost score significantly
         existing.score = Math.min(existing.score + r.similarity * 0.5, 1.0);
-        existing.sources.push("text");
+        existing.source = "both";
       } else {
         // Text-only match — use text similarity with slight penalty
         merged.set(r.thought.id, {
           thought: r.thought,
           score: r.similarity * 0.8,
-          sources: ["text"],
+          source: "text",
         });
       }
     }
@@ -290,7 +290,7 @@ export class ThoughtManager {
     // Sort by combined score, filter by minimum threshold, take top N
     const sorted = Array.from(merged.values())
       .sort((a, b) => b.score - a.score)
-      .filter((s) => s.score >= 0.3)
+      .filter((s) => s.score >= 0.4)
       .slice(0, limit);
 
     console.log(`[OpenBrain:Search] Hybrid search: ${semanticResults.length} semantic + ${textResults.length} text → ${sorted.length} merged`);
@@ -299,6 +299,7 @@ export class ThoughtManager {
       thought: s.thought,
       similarity: s.score,
       rank: i + 1,
+      match_source: s.source,
     }));
   }
 
@@ -637,7 +638,7 @@ export class ThoughtManager {
       if (thoughtType && thought.thought_type !== thoughtType) continue;
 
       const similarity = 1 / (1 + distance);
-      if (similarity < 0.3) break; // below this threshold, results are noise
+      if (similarity < 0.4) break; // below this threshold, results are noise
       results.push({
         thought,
         similarity,

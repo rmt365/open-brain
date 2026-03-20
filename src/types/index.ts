@@ -160,6 +160,7 @@ export interface SearchResult {
   thought: Thought;
   similarity: number;
   rank: number;
+  match_source?: "semantic" | "text" | "both";
 }
 
 // ============================================================

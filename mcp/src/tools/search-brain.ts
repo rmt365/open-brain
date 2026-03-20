@@ -51,6 +51,8 @@ const SearchBrainTool = CreateTool(
       const lines = results.map((r, i) => {
         const t = r.thought;
         const similarity = (r.similarity * 100).toFixed(1);
+        const matchSource = (r as { match_source?: string }).match_source;
+        const matchLabel = matchSource ? ` via ${matchSource}` : "";
         const date = new Date(t.created_at).toLocaleDateString("en-US", {
           month: "short", day: "numeric", year: "numeric",
         });
@@ -63,7 +65,7 @@ const SearchBrainTool = CreateTool(
           extras.push(`Actions: ${t.auto_action_items.join("; ")}`);
         }
         const extrasStr = extras.length > 0 ? `\n   ${extras.join(" | ")}` : "";
-        return `${i + 1}. [${t.thought_type}]${topic} (${similarity}% match, ${date})\n   ${t.text}${extrasStr}\n   ID: ${t.id}`;
+        return `${i + 1}. [${t.thought_type}]${topic} (${similarity}%${matchLabel}, ${date})\n   ${t.text}${extrasStr}\n   ID: ${t.id}`;
       });
 
       const summary = `Found ${results.length} thought${results.length !== 1 ? "s" : ""} matching "${query}":`;
