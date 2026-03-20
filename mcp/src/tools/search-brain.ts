@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CreateTool } from "../helpers/create-tool.js";
 import { searchThoughts } from "../helpers/open-brain-client.js";
+import { injectContext } from "../helpers/context-injector.js";
 
 const THOUGHT_TYPES = [
   "note", "idea", "task", "question", "observation", "decision", "reference", "reflection",
@@ -73,11 +74,12 @@ const SearchBrainTool = CreateTool(
       });
 
       const summary = `Found ${results.length} thought${results.length !== 1 ? "s" : ""} matching "${query}":`;
+      const text = await injectContext(`${summary}\n\n${lines.join("\n\n")}`);
 
       return {
         content: [{
           type: "text" as const,
-          text: `${summary}\n\n${lines.join("\n\n")}`,
+          text,
         }],
       };
     } catch (error) {

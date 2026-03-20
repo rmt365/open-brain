@@ -1,49 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import SearchBrainTool from "./search-brain.js";
-import CaptureThoughtTool from "./capture-thought.js";
-import BrowseRecentTool from "./browse-recent.js";
-import BrainStatsTool from "./brain-stats.js";
-import FindRelatedTool from "./find-related.js";
-import ListTopicsTool from "./list-topics.js";
-import ManageTopicsTool from "./manage-topics.js";
-import IngestUrlTool from "./ingest-url.js";
-import IngestDocumentTool from "./ingest-document.js";
-import SurfaceForgottenTool from "./surface-forgotten.js";
-import GetTasteProfileTool from "./get-taste-profile.js";
-import {
-  AddHouseholdItemTool,
-  SearchHouseholdItemsTool,
-  GetHouseholdItemTool,
-  AddVendorTool,
-  ListVendorsTool,
-} from "./household-tools.js";
-import {
-  AddPreferenceTool,
-  ListPreferencesTool,
-  RemovePreferenceTool,
-} from "./preference-tools.js";
+import CaptureTool from "./capture.js";
+import ExploreTool from "./explore.js";
+import HouseholdTool from "./household.js";
+import TopicsTool from "./topics.js";
 
 const AllTools = [
   SearchBrainTool,
-  CaptureThoughtTool,
-  BrowseRecentTool,
-  BrainStatsTool,
-  FindRelatedTool,
-  ListTopicsTool,
-  ManageTopicsTool,
-  IngestUrlTool,
-  IngestDocumentTool,
-  SurfaceForgottenTool,
-  GetTasteProfileTool,
-  AddPreferenceTool,
-  ListPreferencesTool,
-  RemovePreferenceTool,
-  AddHouseholdItemTool,
-  SearchHouseholdItemsTool,
-  GetHouseholdItemTool,
-  AddVendorTool,
-  ListVendorsTool,
+  CaptureTool,
+  ExploreTool,
+  HouseholdTool,
+  TopicsTool,
 ];
 
 export function ToolFactory(server: McpServer) {
