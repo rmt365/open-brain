@@ -23,7 +23,8 @@ export function createAuthMiddleware(apiKey: string | null) {
       c.req.method === "OPTIONS" ||
       path === "/health" ||
       path === "/manifest" ||
-      path.startsWith("/ui")
+      path.startsWith("/ui") ||
+      (c.req.method === "GET" && path.startsWith("/documents/"))
     ) {
       await next();
       return;
