@@ -120,6 +120,50 @@ const ExploreTool = CreateCompoundTool(
         return textResult(await injectContext(text));
       },
     },
+    get: {
+      description: "Get full details of a specific thought by ID, including metadata and source URL (requires thought_id)",
+      required: ["thought_id"],
+      handler: async (args) => {
+        const thoughtId = args.thought_id as string;
+        const thoughtResponse = await getThought(thoughtId);
+
+        if (!thoughtResponse.success || !thoughtResponse.data) {
+          return textResult(`Thought not found: ${thoughtResponse.error || "Unknown error"}`, true);
+        }
+
+        const t = thoughtResponse.data;
+        const date = new Date(t.created_at).toLocaleDateString("en-US", {
+          month: "short", day: "numeric", year: "numeric",
+        });
+
+        const parts = [
+          `**${t.thought_type}**${t.topic ? ` [${t.topic}]` : ""} — ${date}`,
+          ``,
+          t.text.length > 500 ? t.text.substring(0, 500) + "..." : t.text,
+        ];
+
+        if (t.life_area || t.auto_life_area) parts.push(`Life area: ${t.life_area || t.auto_life_area}`);
+        if (t.auto_topics?.length) parts.push(`Topics: ${t.auto_topics.join(", ")}`);
+        if (t.auto_people?.length) parts.push(`People: ${t.auto_people.join(", ")}`);
+        if (t.auto_action_items?.length) parts.push(`Action items: ${t.auto_action_items.join("; ")}`);
+        if (t.auto_sentiment) parts.push(`Sentiment: ${t.auto_sentiment}`);
+
+        const meta = t.metadata as Record<string, unknown> | null;
+        if (meta) {
+          if (meta.source_url) parts.push(`Source URL: ${meta.source_url}`);
+          if (meta.title) parts.push(`Title: ${meta.title}`);
+          if (meta.original_filename) parts.push(`File: ${meta.original_filename}`);
+          if (meta.wasabi_key) parts.push(`Storage key: ${meta.wasabi_key}`);
+          if (meta.content_length) parts.push(`Content length: ${meta.content_length} chars`);
+        }
+
+        parts.push(`Source channel: ${t.source_channel}`);
+        parts.push(`Embedding: ${t.has_embedding ? "yes" : "no"}${t.embedding_model ? ` (${t.embedding_model})` : ""}`);
+        parts.push(`ID: ${t.id}`);
+
+        return textResult(parts.join("\n"));
+      },
+    },
     forgotten: {
       description: "Surface old thoughts you may have forgotten about",
       handler: async (args) => {

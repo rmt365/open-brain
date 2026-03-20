@@ -139,6 +139,65 @@ describe("explore tool", () => {
     });
   });
 
+  describe("action: get", () => {
+    it("returns full thought details with metadata", async () => {
+      vi.mocked(client.getThought).mockResolvedValue({
+        success: true,
+        data: {
+          ...fakeThought,
+          id: "t-etf",
+          text: "Anthropic ETF article",
+          thought_type: "reference",
+          metadata: {
+            source_url: "https://motleyfool.com/article/123",
+            title: "Anthropic ETF Article",
+            content_length: 5000,
+          },
+        },
+      });
+
+      const result = await call({ action: "get", thought_id: "t-etf" });
+      expect(result.content[0].text).toContain("Source URL: https://motleyfool.com/article/123");
+      expect(result.content[0].text).toContain("Title: Anthropic ETF Article");
+      expect(result.content[0].text).toContain("Content length: 5000 chars");
+      expect(result.content[0].text).toContain("ID: t-etf");
+    });
+
+    it("shows document metadata", async () => {
+      vi.mocked(client.getThought).mockResolvedValue({
+        success: true,
+        data: {
+          ...fakeThought,
+          metadata: {
+            original_filename: "receipt.pdf",
+            wasabi_key: "docs/receipt.pdf",
+          },
+        },
+      });
+
+      const result = await call({ action: "get", thought_id: "t-1" });
+      expect(result.content[0].text).toContain("File: receipt.pdf");
+      expect(result.content[0].text).toContain("Storage key: docs/receipt.pdf");
+    });
+
+    it("requires thought_id", async () => {
+      const result = await call({ action: "get" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("requires: thought_id");
+    });
+
+    it("handles thought not found", async () => {
+      vi.mocked(client.getThought).mockResolvedValue({
+        success: false,
+        error: "Not found",
+      });
+
+      const result = await call({ action: "get", thought_id: "nope" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Thought not found");
+    });
+  });
+
   describe("action: forgotten", () => {
     it("surfaces forgotten thoughts", async () => {
       const oldThought = {
