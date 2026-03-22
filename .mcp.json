@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "open-brain": {
+      "type": "http",
+      "url": "https://robin.brain.ceruleancore.ca/mcp",
+      "headers": {
+        "Authorization": "Bearer ${OPEN_BRAIN_API_KEY}"
+      }
+    }
+  }
+}
