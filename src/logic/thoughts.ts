@@ -699,6 +699,10 @@ export class ThoughtManager {
     return this.db.getStats();
   }
 
+  getBreakdown(): import("../types/index.ts").BrainBreakdown {
+    return this.db.getBreakdown();
+  }
+
   getTopics(): Array<{ topic: string; count: number }> {
     return this.db.getTopicCounts();
   }

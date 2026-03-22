@@ -1857,6 +1857,7 @@ class OpenBrainChat extends LitElement {
         <span class="header-title">Open Brain</span>
         <div class="header-right">
           <a href="${BASE_PATH}/ui/browse" class="header-nav-link" title="Browse thoughts">&#128218;</a>
+          <a href="${BASE_PATH}/ui/explore" class="header-nav-link" title="Explore brain">&#127758;</a>
           <div class="header-status">
             <div class="status-dot ${this.online ? '' : 'offline'}"></div>
             ${this.online ? 'Online' : 'Offline'}

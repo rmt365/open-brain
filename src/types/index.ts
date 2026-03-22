@@ -191,6 +191,17 @@ export interface BrainStats {
   newest_thought: string | null;
 }
 
+export interface BrainBreakdown {
+  by_life_area: Record<string, {
+    count: number;
+    topics: Record<string, number>;
+  }>;
+  unclassified: {
+    count: number;
+    topics: Record<string, number>;
+  };
+}
+
 // ============================================================
 // REQUEST TYPES
 // ============================================================

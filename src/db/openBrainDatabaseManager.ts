@@ -496,6 +496,39 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   // STATS
   // ============================================
 
+  getBreakdown(): import("../types/index.ts").BrainBreakdown {
+    const rows = this.db.prepare(`
+      SELECT
+        COALESCE(life_area, auto_life_area, 'unclassified') as area,
+        topic,
+        COUNT(*) as count
+      FROM thoughts
+      WHERE status = 'active'
+      GROUP BY area, topic
+    `).all() as Array<{ area: string; topic: string | null; count: number }>;
+
+    const result: import("../types/index.ts").BrainBreakdown = {
+      by_life_area: {},
+      unclassified: { count: 0, topics: {} },
+    };
+
+    for (const row of rows) {
+      const topicName = row.topic || "(no topic)";
+      if (row.area === "unclassified") {
+        result.unclassified.count += row.count;
+        result.unclassified.topics[topicName] = (result.unclassified.topics[topicName] || 0) + row.count;
+      } else {
+        if (!result.by_life_area[row.area]) {
+          result.by_life_area[row.area] = { count: 0, topics: {} };
+        }
+        result.by_life_area[row.area].count += row.count;
+        result.by_life_area[row.area].topics[topicName] = (result.by_life_area[row.area].topics[topicName] || 0) + row.count;
+      }
+    }
+
+    return result;
+  }
+
   getStats(): BrainStats {
     const total = (this.db.prepare(
       "SELECT COUNT(*) as count FROM thoughts WHERE status = 'active'"

@@ -50,6 +50,18 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
     }
   });
 
+  // GET /thoughts/stats/breakdown — hierarchical breakdown for treemap
+  router.get("/stats/breakdown", (c) => {
+    try {
+      const breakdown = manager.getBreakdown();
+      return c.json<ApiResponse>({ success: true, data: breakdown });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error getting breakdown:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
   // GET /topics — topic list with counts
   router.get("/topics", (c) => {
     try {

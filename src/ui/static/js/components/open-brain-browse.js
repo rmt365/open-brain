@@ -544,6 +544,7 @@ class OpenBrainBrowse extends LitElement {
         <div class="header-icon">&#129504;</div>
         <span class="header-title">Open Brain</span>
         <a href="${BASE_PATH}/ui/brain" class="header-nav-link" title="Capture thoughts">&#128172;</a>
+        <a href="${BASE_PATH}/ui/explore" class="header-nav-link" title="Explore brain">&#127758;</a>
       </div>
 
       <div class="controls">
@@ -691,6 +692,20 @@ class OpenBrainBrowse extends LitElement {
                 <span class="value editable"
                   @click=${(e) => { e.stopPropagation(); this._editingField = `area-${t.id}`; }}
                 >${t.life_area || t.auto_life_area || '—'}</span>
+              `}
+            </div>
+            <div>
+              <span class="label">Topic: </span>
+              ${this._editingField === `topic-${t.id}` ? html`
+                <input class="edit-select" type="text"
+                  .value=${t.topic || ''}
+                  placeholder="Enter topic..."
+                  @keydown=${(e) => { if (e.key === 'Enter') this._updateThought(t.id, 'topic', e.target.value); }}
+                  @blur=${(e) => { if (e.target.value !== (t.topic || '')) this._updateThought(t.id, 'topic', e.target.value); else this._editingField = null; }}>
+              ` : html`
+                <span class="value editable"
+                  @click=${(e) => { e.stopPropagation(); this._editingField = `topic-${t.id}`; }}
+                >${t.topic || '—'}</span>
               `}
             </div>
             <div>
