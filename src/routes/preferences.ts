@@ -36,6 +36,20 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
   // STATIC ROUTES (must come before :id)
   // ============================================================
 
+  /** GET /preferences/domains — List distinct domains with counts */
+  router.get("/domains", (c) => {
+    try {
+      const domains = db.listDomains();
+      return c.json<ApiResponse<Array<{ domain: string; count: number }>>>({
+        success: true,
+        data: domains,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
   /** GET /preferences/block — Assembled preferences as a system prompt block */
   router.get("/block", (c) => {
     try {

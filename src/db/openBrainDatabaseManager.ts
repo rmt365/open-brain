@@ -8,6 +8,7 @@ import type {
   Sentiment,
   LifeArea,
   ConstraintType,
+  PreferenceFormat,
   BrainStats,
   CaptureThoughtRequest,
   UpdateThoughtRequest,
@@ -992,20 +993,25 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   createPreference(data: {
     preference_name: string;
     domain?: string;
-    reject: string;
-    want: string;
+    reject?: string;
+    want?: string;
+    format?: PreferenceFormat;
+    content?: string;
     constraint_type?: ConstraintType;
   }): TastePreference {
     const id = crypto.randomUUID();
+    const format = data.format || "rule";
     this.db.prepare(`
-      INSERT INTO taste_preferences (id, preference_name, domain, reject, want, constraint_type)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO taste_preferences (id, preference_name, domain, reject, want, format, content, constraint_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.preference_name,
       data.domain || "general",
-      data.reject,
-      data.want,
+      data.reject || "",
+      data.want || "",
+      format,
+      format === "block" ? (data.content || null) : null,
       data.constraint_type || "quality standard"
     );
     return this.getPreference(id)!;
@@ -1042,6 +1048,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     domain?: string;
     reject?: string;
     want?: string;
+    content?: string;
     constraint_type?: ConstraintType;
   }): TastePreference | null {
     const existing = this.getPreference(id);
@@ -1065,6 +1072,10 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     if (data.want !== undefined) {
       updates.push("want = ?");
       params.push(data.want);
+    }
+    if (data.content !== undefined) {
+      updates.push("content = ?");
+      params.push(data.content);
     }
     if (data.constraint_type !== undefined) {
       updates.push("constraint_type = ?");
@@ -1104,9 +1115,18 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
 
     if (prefs.length === 0) return "";
 
-    return prefs.map((p) =>
-      `**${p.preference_name}**\nReject: ${p.reject}\nWant: ${p.want}`
-    ).join("\n\n");
+    return prefs.map((p) => {
+      if (p.format === "block" && p.content) {
+        return `**${p.preference_name}**\n${p.content}`;
+      }
+      return `**${p.preference_name}**\nReject: ${p.reject}\nWant: ${p.want}`;
+    }).join("\n\n");
+  }
+
+  listDomains(): Array<{ domain: string; count: number }> {
+    return this.db.prepare(
+      "SELECT domain, COUNT(*) as count FROM taste_preferences GROUP BY domain ORDER BY domain"
+    ).all() as Array<{ domain: string; count: number }>;
   }
 
   private parsePreferenceRow(row: Record<string, unknown>): TastePreference {
@@ -1116,6 +1136,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       domain: row.domain as string,
       reject: row.reject as string,
       want: row.want as string,
+      format: (row.format as PreferenceFormat) || "rule",
+      content: (row.content as string) || null,
       constraint_type: row.constraint_type as ConstraintType,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,

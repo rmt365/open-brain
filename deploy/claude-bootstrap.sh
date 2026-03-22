@@ -54,7 +54,10 @@ if [ -z "$OPEN_BRAIN_API_KEY" ]; then
   exit 0
 fi
 
-RESPONSE=$(curl -sf -H "Authorization: Bearer $OPEN_BRAIN_API_KEY" \
+AUTH_HEADER="Authorization: Bearer $OPEN_BRAIN_API_KEY"
+
+# ── 1. Always inject claude-code domain constraints ──
+RESPONSE=$(curl -sf -H "$AUTH_HEADER" \
   "$OPEN_BRAIN_URL/preferences/block?domain=claude-code" 2>/dev/null)
 
 if [ $? -eq 0 ] && [ -n "$RESPONSE" ]; then
@@ -64,6 +67,52 @@ if [ $? -eq 0 ] && [ -n "$RESPONSE" ]; then
     echo ""
     echo "$BLOCK"
   fi
+fi
+
+# ── 2. Detect project type and suggest relevant domains ──
+DETECTED_DOMAINS=""
+
+[ -f "deno.json" ] || [ -f "deno.jsonc" ] && DETECTED_DOMAINS="$DETECTED_DOMAINS deno"
+[ -f "package.json" ] && DETECTED_DOMAINS="$DETECTED_DOMAINS node javascript"
+[ -f "Cargo.toml" ] && DETECTED_DOMAINS="$DETECTED_DOMAINS rust"
+[ -f "go.mod" ] && DETECTED_DOMAINS="$DETECTED_DOMAINS go"
+[ -f "pyproject.toml" ] || [ -f "setup.py" ] && DETECTED_DOMAINS="$DETECTED_DOMAINS python"
+[ -f "tsconfig.json" ] && DETECTED_DOMAINS="$DETECTED_DOMAINS typescript"
+[ -f "docker-compose.yml" ] || [ -f "docker-compose.yaml" ] && DETECTED_DOMAINS="$DETECTED_DOMAINS docker"
+
+if [ -z "$DETECTED_DOMAINS" ]; then
+  exit 0
+fi
+
+# Fetch available domains from Open Brain
+DOMAINS_RESPONSE=$(curl -sf -H "$AUTH_HEADER" \
+  "$OPEN_BRAIN_URL/preferences/domains" 2>/dev/null)
+
+if [ $? -ne 0 ] || [ -z "$DOMAINS_RESPONSE" ]; then
+  exit 0
+fi
+
+AVAILABLE=$(echo "$DOMAINS_RESPONSE" | jq -r '.data[]?.domain // empty' 2>/dev/null)
+
+# Find matches (excluding claude-code, already injected)
+MATCHES=""
+for detected in $DETECTED_DOMAINS; do
+  for available in $AVAILABLE; do
+    if [ "$detected" = "$available" ] && [ "$available" != "claude-code" ]; then
+      MATCHES="$MATCHES $available"
+    fi
+  done
+done
+
+if [ -n "$MATCHES" ]; then
+  echo ""
+  echo "# Suggested constraint domains"
+  echo "Open Brain has constraints for domains matching this project:"
+  for m in $MATCHES; do
+    echo "  - $m"
+  done
+  echo ""
+  echo "Use the capture tool (action: block) to store new constraints, or ask me to fetch constraints for these domains."
 fi
 HOOKEOF
 

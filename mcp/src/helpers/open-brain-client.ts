@@ -170,6 +170,8 @@ interface TastePreference {
   domain: string;
   reject: string;
   want: string;
+  format: string;
+  content: string | null;
   constraint_type: string;
   created_at: string;
   updated_at: string;
@@ -196,6 +198,25 @@ export async function createPreference(data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export async function createBlock(data: {
+  preference_name: string;
+  domain?: string;
+  content: string;
+  constraint_type?: string;
+}): Promise<ApiResponse<TastePreference>> {
+  return request<ApiResponse<TastePreference>>("/preferences", {
+    method: "POST",
+    body: JSON.stringify({
+      ...data,
+      format: "block",
+    }),
+  });
+}
+
+export async function listDomains(): Promise<ApiResponse<Array<{ domain: string; count: number }>>> {
+  return request<ApiResponse<Array<{ domain: string; count: number }>>>("/preferences/domains");
 }
 
 export async function deletePreference(id: number): Promise<ApiResponse<unknown>> {

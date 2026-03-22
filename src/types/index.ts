@@ -52,6 +52,8 @@ export type ConstraintType =
   | "business logic"
   | "formatting";
 
+export type PreferenceFormat = "rule" | "block";
+
 // ============================================================
 // THOUGHT TYPES
 // ============================================================
@@ -109,6 +111,8 @@ export interface TastePreference {
   domain: string;
   reject: string;
   want: string;
+  format: PreferenceFormat;
+  content: string | null;
   constraint_type: ConstraintType;
   created_at: string;
   updated_at: string;
