@@ -446,7 +446,58 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       result.life_area || null,
       id
     );
+
+    // Auto-assign topic from auto_topics if a managed topic matches
+    if (count > 0) {
+      this.assignTopicFromAutoTopics(id);
+    }
+
     return count > 0;
+  }
+
+  /**
+   * Assign topic and life_area from auto_topics when a managed topic matches.
+   * Called after classification to close the gap between auto-classification
+   * and topic assignment.
+   */
+  assignTopicFromAutoTopics(thoughtId: string): boolean {
+    const count = this.db.prepare(`
+      UPDATE thoughts SET
+        topic = (
+          SELECT mt.name FROM managed_topics mt, JSON_EACH(thoughts.auto_topics) je
+          WHERE je.value = mt.name AND mt.active = 1 LIMIT 1
+        ),
+        life_area = COALESCE(thoughts.life_area, (
+          SELECT mt.life_area FROM managed_topics mt, JSON_EACH(thoughts.auto_topics) je
+          WHERE je.value = mt.name AND mt.active = 1 LIMIT 1
+        ))
+      WHERE id = ? AND topic IS NULL AND auto_topics IS NOT NULL
+    `).run(thoughtId);
+    return count > 0;
+  }
+
+  /**
+   * Batch assign topics from auto_topics for all untagged thoughts.
+   * Used for retroactive fix of existing data.
+   */
+  assignTopicsFromAutoTopicsBatch(): number {
+    const count = this.db.prepare(`
+      UPDATE thoughts SET
+        topic = (
+          SELECT mt.name FROM managed_topics mt, JSON_EACH(thoughts.auto_topics) je
+          WHERE je.value = mt.name AND mt.active = 1 LIMIT 1
+        ),
+        life_area = COALESCE(life_area, (
+          SELECT mt.life_area FROM managed_topics mt, JSON_EACH(thoughts.auto_topics) je
+          WHERE je.value = mt.name AND mt.active = 1 LIMIT 1
+        ))
+      WHERE topic IS NULL AND auto_topics IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM managed_topics mt, JSON_EACH(thoughts.auto_topics) je
+          WHERE je.value = mt.name AND mt.active = 1
+        )
+    `).run();
+    return count;
   }
 
   /** Store an embedding and sync to VSS index. */

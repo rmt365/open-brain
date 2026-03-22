@@ -730,6 +730,11 @@ export class ThoughtManager {
     return this.db.getBreakdown();
   }
 
+  /** Batch assign topics from auto_topics for all untagged thoughts. */
+  assignTopicsBatch(): number {
+    return this.db.assignTopicsFromAutoTopicsBatch();
+  }
+
   getTopics(): Array<{ topic: string; count: number }> {
     return this.db.getTopicCounts();
   }

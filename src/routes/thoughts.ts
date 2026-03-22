@@ -62,6 +62,22 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
     }
   });
 
+  // POST /thoughts/assign-topics — batch assign topics from auto_topics
+  router.post("/assign-topics", (c) => {
+    try {
+      const count = manager.assignTopicsBatch();
+      return c.json<ApiResponse>({
+        success: true,
+        data: { updated: count },
+        message: `Assigned topics to ${count} thought(s)`,
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error assigning topics:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
   // GET /topics — topic list with counts
   router.get("/topics", (c) => {
     try {
