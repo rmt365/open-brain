@@ -5,6 +5,7 @@ import CaptureTool from "./capture.js";
 import ExploreTool from "./explore.js";
 import HouseholdTool from "./household.js";
 import TopicsTool from "./topics.js";
+import ConfigTool from "./config.js";
 
 const AllTools = [
   SearchBrainTool,
@@ -12,6 +13,7 @@ const AllTools = [
   ExploreTool,
   HouseholdTool,
   TopicsTool,
+  ConfigTool,
 ];
 
 export function ToolFactory(server: McpServer) {

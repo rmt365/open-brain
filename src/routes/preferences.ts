@@ -16,6 +16,7 @@ import type {
   TastePreference,
   ApiResponse,
   ConstraintType,
+  ArtifactType,
 } from "../types/index.ts";
 import type { LLMProvider } from "../logic/llm/types.ts";
 import { extractPreference } from "../logic/preferences.ts";
@@ -35,6 +36,54 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
   // ============================================================
   // STATIC ROUTES (must come before :id)
   // ============================================================
+
+  /** GET /preferences/domains — List distinct domains with counts */
+  router.get("/domains", (c) => {
+    try {
+      const domains = db.listDomains();
+      return c.json<ApiResponse<Array<{ domain: string; count: number }>>>({
+        success: true,
+        data: domains,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  /** GET /preferences/by-purpose — Find blocks with matching purpose across domains */
+  router.get("/by-purpose", (c) => {
+    try {
+      const purpose = c.req.query("purpose");
+      if (!purpose) {
+        return c.json<ApiResponse>({ success: false, error: "purpose query param required" }, 400);
+      }
+      const domainsParam = c.req.query("domains");
+      const domains = domainsParam ? domainsParam.split(",").map((d) => d.trim()) : undefined;
+      const results = db.findByPurpose(purpose, domains);
+      return c.json<ApiResponse<TastePreference[]>>({
+        success: true,
+        data: results,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  /** GET /preferences/profiles — List config profiles (domains with config artifacts) */
+  router.get("/profiles", (c) => {
+    try {
+      const profiles = db.listConfigProfiles();
+      return c.json<ApiResponse>({
+        success: true,
+        data: profiles,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
 
   /** GET /preferences/block — Assembled preferences as a system prompt block */
   router.get("/block", (c) => {
@@ -106,10 +155,35 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
     try {
       const domain = c.req.query("domain");
       const constraintType = c.req.query("constraint_type") as ConstraintType | undefined;
-      const preferences = db.listPreferences(domain, constraintType);
+      const artifactType = c.req.query("artifact_type") as ArtifactType | undefined;
+      const preferences = db.listPreferences(domain, constraintType, artifactType);
       return c.json<ApiResponse<TastePreference[]>>({
         success: true,
         data: preferences,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  /** PUT /preferences/upsert — Upsert a config artifact by domain + name */
+  router.put("/upsert", validateJson(CreatePreferenceSchema), (c) => {
+    try {
+      const data = c.req.valid("json" as never) as CreatePreferenceInput;
+      if (!data.artifact_type) {
+        return c.json<ApiResponse>({ success: false, error: "artifact_type is required for upsert" }, 400);
+      }
+      const preference = db.upsertConfigArtifact(data.domain, data.preference_name, {
+        content: data.content || "",
+        artifact_type: data.artifact_type,
+        purpose: data.purpose,
+        constraint_type: data.constraint_type,
+      });
+      return c.json<ApiResponse<TastePreference>>({
+        success: true,
+        data: preference,
+        message: "Config artifact upserted",
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

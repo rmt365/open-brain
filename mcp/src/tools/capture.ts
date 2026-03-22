@@ -5,6 +5,7 @@ import {
   ingestUrl,
   uploadDocument,
   createPreference,
+  createBlock,
   deletePreference,
 } from "../helpers/open-brain-client.js";
 
@@ -141,6 +142,29 @@ const CaptureTool = CreateCompoundTool(
         );
       },
     },
+    block: {
+      description: "Store a markdown constraint block — architecture docs, skill definitions, or design guidance (requires preference_name, content)",
+      required: ["preference_name", "content"],
+      handler: async (args) => {
+        const response = await createBlock({
+          preference_name: args.preference_name as string,
+          domain: args.domain as string | undefined,
+          content: args.content as string,
+          constraint_type: args.constraint_type as string | undefined,
+        });
+
+        if (!response.success || !response.data) {
+          return textResult(`Failed to save block: ${response.error || "Unknown error"}`, true);
+        }
+
+        const p = response.data;
+        const preview = p.content ? p.content.substring(0, 100) + (p.content.length > 100 ? "..." : "") : "";
+        return textResult(
+          `Block saved: "${p.preference_name}" (${p.domain})\n` +
+          `  ${preview}`,
+        );
+      },
+    },
     remove_preference: {
       description: "Remove a previously recorded preference (requires preference_id)",
       required: ["preference_id"],
@@ -163,7 +187,8 @@ const CaptureTool = CreateCompoundTool(
     filename: z.string().optional().describe("Original filename e.g. 'receipt.jpg' (for action: document)"),
     mime_type: z.enum(MIME_TYPES).optional().describe("MIME type of the file (for action: document)"),
     context: z.string().optional().describe("Additional context about a document (for action: document)"),
-    preference_name: z.string().optional().describe("Short name for the preference (for action: preference)"),
+    content: z.string().optional().describe("Markdown content for constraint blocks (for action: block)"),
+    preference_name: z.string().optional().describe("Short name for the preference (for action: preference or block)"),
     domain: z.string().optional().describe("Category domain e.g. 'writing', 'code' (for action: preference)"),
     reject: z.string().optional().describe("What the user does NOT want (for action: preference)"),
     want: z.string().optional().describe("What the user DOES want (for action: preference)"),

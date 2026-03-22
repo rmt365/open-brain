@@ -52,6 +52,16 @@ export type ConstraintType =
   | "business logic"
   | "formatting";
 
+export type PreferenceFormat = "rule" | "block";
+
+export type ArtifactType =
+  | "claude-md"
+  | "mcp-server"
+  | "sub-agent"
+  | "settings"
+  | "hook"
+  | "tool-config";
+
 // ============================================================
 // THOUGHT TYPES
 // ============================================================
@@ -109,7 +119,11 @@ export interface TastePreference {
   domain: string;
   reject: string;
   want: string;
+  format: PreferenceFormat;
+  content: string | null;
   constraint_type: ConstraintType;
+  artifact_type: ArtifactType | null;
+  purpose: string | null;
   created_at: string;
   updated_at: string;
 }
