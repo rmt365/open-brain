@@ -499,4 +499,40 @@ export async function listHouseholdVendors(
   return request<ApiResponse<HouseholdVendor[]>>(`/ext/household/vendors${qs ? `?${qs}` : ""}`);
 }
 
-export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse, HouseholdItem, HouseholdVendor };
+// ============================================
+// Gardener extension
+// ============================================
+
+interface GardenSummary {
+  duplicates_merged: number;
+  suggestions_consolidated: number;
+  topics_approved: number;
+  life_areas_assigned: number;
+  thoughts_tagged: number;
+  skipped_steps: string[];
+}
+
+interface GardenRunResult {
+  run_id: string;
+  started_at: string;
+  completed_at: string;
+  actions: Array<{
+    type: string;
+    details: Record<string, unknown>;
+    affected_ids: string[];
+  }>;
+  summary: GardenSummary;
+}
+
+export async function gardenTopics(
+  dryRun?: boolean,
+): Promise<ApiResponse<GardenRunResult>> {
+  const searchParams = new URLSearchParams();
+  if (dryRun) searchParams.set("dry_run", "true");
+  const qs = searchParams.toString();
+  return request<ApiResponse<GardenRunResult>>(`/ext/gardener/run${qs ? `?${qs}` : ""}`, {
+    method: "POST",
+  });
+}
+
+export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse, HouseholdItem, HouseholdVendor, GardenRunResult };

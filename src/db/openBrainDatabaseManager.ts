@@ -1046,6 +1046,66 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     return count > 0;
   }
 
+  rejectSuggestionsBatch(ids: number[]): void {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => "?").join(",");
+    this.db.prepare(
+      `UPDATE suggested_topics SET status = 'rejected' WHERE id IN (${placeholders}) AND status = 'pending'`
+    ).run(...ids);
+  }
+
+  // ============================================
+  // GARDEN ACTIONS LOG
+  // ============================================
+
+  logGardenAction(
+    runId: string,
+    actionType: string,
+    details: Record<string, unknown>,
+    affectedIds: string[],
+  ): void {
+    this.db.prepare(
+      `INSERT INTO garden_actions (run_id, action_type, details, affected_ids)
+       VALUES (?, ?, ?, ?)`
+    ).run(
+      runId,
+      actionType,
+      JSON.stringify(details),
+      JSON.stringify(affectedIds),
+    );
+  }
+
+  getGardenLog(limit: number = 50): Array<{
+    id: number;
+    run_id: string;
+    action_type: string;
+    details: Record<string, unknown>;
+    affected_ids: string[];
+    created_at: string;
+  }> {
+    const rows = this.db.prepare(
+      "SELECT * FROM garden_actions ORDER BY created_at DESC LIMIT ?"
+    ).all(limit) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => ({
+      id: row.id as number,
+      run_id: row.run_id as string,
+      action_type: row.action_type as string,
+      details: JSON.parse((row.details as string) || "{}"),
+      affected_ids: JSON.parse((row.affected_ids as string) || "[]"),
+      created_at: row.created_at as string,
+    }));
+  }
+
+  getLastGardenRun(): { run_id: string; created_at: string } | null {
+    const row = this.db.prepare(
+      "SELECT run_id, MAX(created_at) as created_at FROM garden_actions GROUP BY run_id ORDER BY created_at DESC LIMIT 1"
+    ).get() as { run_id: string; created_at: string } | undefined;
+
+    if (!row || !row.run_id) return null;
+    return { run_id: row.run_id, created_at: row.created_at };
+  }
+
   private parseSuggestedTopicRow(row: Record<string, unknown>): SuggestedTopic {
     return {
       id: row.id as number,

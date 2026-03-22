@@ -5,6 +5,7 @@ import {
   getPendingSuggestions,
   approveSuggestion,
   rejectSuggestion,
+  gardenTopics,
 } from "../helpers/open-brain-client.js";
 
 const LIFE_AREAS = [
@@ -91,11 +92,54 @@ const TopicsTool = CreateCompoundTool(
         return textResult("Suggestion rejected.");
       },
     },
+    garden: {
+      description: "Run the gardener: deduplicates suggestions, auto-approves frequent topics, assigns life areas, and retroactively tags thoughts. Use dry_run=true to preview.",
+      handler: async (args) => {
+        const dryRun = args.dry_run === true;
+        const response = await gardenTopics(dryRun);
+
+        if (!response.success || !response.data) {
+          return textResult(`Garden run failed: ${response.error || "Unknown error"}`, true);
+        }
+
+        const { summary, actions } = response.data;
+        const lines: string[] = [
+          dryRun ? "**Garden dry run complete:**" : "**Garden run complete:**",
+          "",
+        ];
+
+        if (summary.duplicates_merged > 0) {
+          lines.push(`- Duplicates merged: ${summary.duplicates_merged}`);
+        }
+        if (summary.suggestions_consolidated > 0) {
+          lines.push(`- Suggestions consolidated: ${summary.suggestions_consolidated}`);
+        }
+        if (summary.topics_approved > 0) {
+          lines.push(`- Topics auto-approved: ${summary.topics_approved}`);
+        }
+        if (summary.life_areas_assigned > 0) {
+          lines.push(`- Life areas assigned: ${summary.life_areas_assigned}`);
+        }
+        if (summary.thoughts_tagged > 0) {
+          lines.push(`- Thoughts retroactively tagged: ${summary.thoughts_tagged}`);
+        }
+        if (summary.skipped_steps.length > 0) {
+          lines.push(`- Skipped: ${summary.skipped_steps.join(", ")}`);
+        }
+
+        if (actions.length === 0) {
+          lines.push("No actions needed — everything is clean.");
+        }
+
+        return textResult(lines.join("\n"));
+      },
+    },
   },
   {
     suggestion_id: z.number().optional().describe("The ID of the suggestion to approve or reject"),
     life_area: z.enum(LIFE_AREAS).optional().describe("Life area to assign when approving"),
     include_suggestions: z.boolean().optional().default(true).describe("Include pending suggestions when listing (default: true)"),
+    dry_run: z.boolean().optional().default(false).describe("Preview garden actions without making changes"),
   },
 );
 
