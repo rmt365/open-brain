@@ -28,7 +28,6 @@ const TYPE_LABELS = {
 };
 
 const THOUGHT_TYPES = ['reference', 'idea', 'task', 'note', 'observation', 'question', 'decision', 'reflection'];
-const LIFE_AREAS = ['craft', 'business', 'systems', 'health', 'marriage', 'relationships', 'creative', 'wild', 'meta'];
 
 class OpenBrainBrowse extends LitElement {
   static properties = {
@@ -42,6 +41,7 @@ class OpenBrainBrowse extends LitElement {
     _offset: { type: Number, state: true },
     _hasMore: { type: Boolean, state: true },
     _lightboxSrc: { type: String, state: true },
+    _lifeAreas: { type: Array, state: true },
   };
 
   static styles = css`
@@ -360,11 +360,25 @@ class OpenBrainBrowse extends LitElement {
     this._offset = 0;
     this._hasMore = true;
     this._lightboxSrc = null;
+    this._lifeAreas = [];
   }
 
   connectedCallback() {
     super.connectedCallback();
+    this._loadLifeAreas();
     this._loadThoughts();
+  }
+
+  async _loadLifeAreas() {
+    try {
+      const res = await fetch(`${BASE_PATH}/life-areas`, { headers: this._getHeaders() });
+      const json = await res.json();
+      if (json.success && json.data) {
+        this._lifeAreas = json.data;
+      }
+    } catch (e) {
+      console.warn('Failed to load life areas:', e);
+    }
   }
 
   _getApiKey() {
@@ -686,8 +700,8 @@ class OpenBrainBrowse extends LitElement {
                   @change=${(e) => this._updateThought(t.id, 'life_area', e.target.value)}
                   @blur=${() => { this._editingField = null; }}>
                   <option value="">—</option>
-                  ${LIFE_AREAS.map(area => html`
-                    <option value=${area} ?selected=${(t.life_area || t.auto_life_area) === area}>${area}</option>
+                  ${this._lifeAreas.map(area => html`
+                    <option value=${area.name} ?selected=${(t.life_area || t.auto_life_area) === area.name}>${area.name}</option>
                   `)}
                 </select>
               ` : html`

@@ -16,10 +16,6 @@ const ALLOWED_TYPES = new Set([
 ]);
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
-const VALID_LIFE_AREAS: Set<string> = new Set([
-  "craft", "business", "systems", "health",
-  "marriage", "relationships", "creative", "wild", "meta",
-]);
 
 export function createDocumentRoutes(
   manager: ThoughtManager,
@@ -51,10 +47,7 @@ export function createDocumentRoutes(
         );
       }
 
-      const lifeAreaStr = typeof body["life_area"] === "string" ? body["life_area"] : undefined;
-      const lifeArea = lifeAreaStr && VALID_LIFE_AREAS.has(lifeAreaStr)
-        ? lifeAreaStr as LifeArea
-        : undefined;
+      const lifeArea = typeof body["life_area"] === "string" ? body["life_area"] as LifeArea : undefined;
       const context = typeof body["context"] === "string" ? body["context"] : undefined;
       const sourceChannel = typeof body["source_channel"] === "string" ? body["source_channel"] : "web";
 

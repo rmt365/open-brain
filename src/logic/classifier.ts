@@ -3,7 +3,7 @@
 
 import { PromptLoader } from "@p2b/hono-core";
 import { join, dirname, fromFileUrl } from "@std/path";
-import type { ThoughtType, Sentiment, LifeArea } from "../types/index.ts";
+import type { ThoughtType, Sentiment, LifeArea, LifeAreaConfig } from "../types/index.ts";
 import type { LLMProvider } from "./llm/types.ts";
 
 // ============================================================
@@ -27,10 +27,8 @@ const VALID_THOUGHT_TYPES: Set<string> = new Set([
   "observation", "decision", "reference", "reflection",
 ]);
 
-const VALID_LIFE_AREAS: Set<string> = new Set([
-  "craft", "business", "systems", "health",
-  "marriage", "relationships", "creative", "wild", "meta",
-]);
+// Life areas are now loaded from the database and passed to classifyThought().
+// This module-level variable is set per classification call.
 
 const VALID_SENTIMENTS: Set<string> = new Set([
   "positive", "negative", "neutral", "mixed",
@@ -65,12 +63,14 @@ function getPromptLoader(): PromptLoader {
  * captured even if the LLM is unavailable.
  *
  * @param managedTopics - list of active managed topic names to include in the prompt
+ * @param lifeAreas - list of active life area configs (from database) for classification
  */
 export async function classifyThought(
   text: string,
   provider: LLMProvider,
   model?: string,
-  managedTopics?: string[]
+  managedTopics?: string[],
+  lifeAreas?: LifeAreaConfig[]
 ): Promise<ClassificationResult | null> {
   try {
     const loader = getPromptLoader();
@@ -78,9 +78,24 @@ export async function classifyThought(
       ? managedTopics.join(", ")
       : "(no managed topics yet — suggest appropriate topics)";
 
+    // Format life area names for enum hint (e.g., "craft"|"business"|...)
+    const areaNames = lifeAreas && lifeAreas.length > 0
+      ? lifeAreas.map(a => a.name)
+      : [];
+    const lifeAreaEnum = areaNames.length > 0
+      ? areaNames.map(n => `"${n}"`).join("|")
+      : '"craft"|"business"|"systems"|"health"|"marriage"|"relationships"|"creative"|"wild"|"meta"';
+
+    // Format life area definitions for the detailed section
+    const lifeAreaDefs = lifeAreas && lifeAreas.length > 0
+      ? lifeAreas.map(a => `- "${a.name}": ${a.description || a.label}`).join("\n      ")
+      : '- "craft": professional skill and discipline\n      - "business": revenue, clients, operations\n      - "systems": tools, infrastructure, processes\n      - "health": physical and mental health\n      - "marriage": spouse/partner relationship\n      - "relationships": friends, family, networking\n      - "creative": making things, side projects\n      - "wild": speculative ideas, moonshots\n      - "meta": thinking about thinking, productivity';
+
     const { system, user } = loader.getPrompt("classify_thought", {
       thought_text: text,
       managed_topics: topicList,
+      life_areas: lifeAreaEnum,
+      life_area_definitions: lifeAreaDefs,
     });
 
     console.log(`[OpenBrain:Classify] Classifying thought (${text.length} chars)`);
@@ -100,7 +115,7 @@ export async function classifyThought(
     }
 
     // Validate and normalize the result
-    return normalizeClassification(parsed);
+    return normalizeClassification(parsed, areaNames);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error(`[OpenBrain:Classify] Classification failed: ${msg}`);
@@ -148,7 +163,8 @@ function extractJSON(text: string): Record<string, unknown> | null {
  * Validate and normalize a classification result from the LLM
  */
 function normalizeClassification(
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
+  lifeAreas?: string[]
 ): ClassificationResult | null {
   const thoughtType = String(raw.thought_type || "note");
   const topics = Array.isArray(raw.topics)
@@ -166,9 +182,12 @@ function normalizeClassification(
     ? thoughtType as ThoughtType
     : "note" as ThoughtType;
 
-  // Validate life_area
+  // Validate life_area against the dynamic list (or accept any non-empty string as fallback)
   const rawLifeArea = String(raw.life_area || "");
-  const lifeArea = VALID_LIFE_AREAS.has(rawLifeArea)
+  const validLifeAreas = lifeAreas
+    ? new Set(lifeAreas)
+    : null;
+  const lifeArea = rawLifeArea && (!validLifeAreas || validLifeAreas.has(rawLifeArea))
     ? rawLifeArea as LifeArea
     : null;
 

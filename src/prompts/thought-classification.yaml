@@ -17,6 +17,8 @@ templates:
     variables:
       - thought_text
       - managed_topics
+      - life_areas
+      - life_area_definitions
     prompt: |
       Classify this thought and extract metadata:
 
@@ -25,7 +27,7 @@ templates:
       Return JSON with:
       {
         "thought_type": one of "note"|"idea"|"task"|"question"|"observation"|"decision"|"reference"|"reflection",
-        "life_area": one of "craft"|"business"|"systems"|"health"|"marriage"|"relationships"|"creative"|"wild"|"meta",
+        "life_area": one of {{life_areas}},
         "topics": ["topic1", "topic2"] (1-3 topics from the managed list below),
         "suggested_topics": ["new_topic"] (topics NOT in the managed list that you think should be added — empty array if none needed),
         "confidence": 0.0-1.0 (how confident you are in the classification),
@@ -35,16 +37,8 @@ templates:
         "sentiment": one of "positive"|"negative"|"neutral"|"mixed"
       }
 
-      Life area definitions:
-      - "craft": professional skill and discipline — the actual work you do
-      - "business": revenue, clients, operations, pricing, invoicing
-      - "systems": tools, infrastructure, processes, automation, dev environment
-      - "health": physical health, mental health, energy, fitness
-      - "marriage": spouse/partner relationship
-      - "relationships": friends, family, networking, birthdays, contact info
-      - "creative": making things, side projects, hands-on play, tinkering
-      - "wild": speculative ideas, what-ifs, untethered brainstorms, moonshots
-      - "meta": thinking about thinking, self-improvement, productivity, habits
+      Life areas (pick the most appropriate one):
+      {{life_area_definitions}}
 
       Managed topic list (pick from these when possible):
       {{managed_topics}}

@@ -7,6 +7,7 @@ import type {
   ThoughtStatus,
   Sentiment,
   LifeArea,
+  LifeAreaConfig,
   ConstraintType,
   PreferenceFormat,
   ArtifactType,
@@ -932,6 +933,153 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   }
 
   // ============================================
+  // LIFE AREAS
+  // ============================================
+
+  getLifeAreas(activeOnly: boolean = true): LifeAreaConfig[] {
+    const query = activeOnly
+      ? "SELECT * FROM life_areas WHERE active = 1 ORDER BY sort_order"
+      : "SELECT * FROM life_areas ORDER BY sort_order";
+    const rows = this.db.prepare(query).all() as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseLifeAreaRow(row));
+  }
+
+  getLifeAreaNames(): string[] {
+    const rows = this.db.prepare(
+      "SELECT name FROM life_areas WHERE active = 1 ORDER BY sort_order"
+    ).all() as Array<{ name: string }>;
+    return rows.map((r) => r.name);
+  }
+
+  addLifeArea(data: {
+    name: string;
+    label: string;
+    description?: string;
+    color: string;
+    sort_order?: number;
+  }): LifeAreaConfig {
+    const sortOrder = data.sort_order ?? this.getNextLifeAreaSortOrder();
+    this.db.prepare(
+      "INSERT INTO life_areas (name, label, description, color, sort_order) VALUES (?, ?, ?, ?, ?)"
+    ).run(
+      data.name.toLowerCase().trim(),
+      data.label,
+      data.description || null,
+      data.color,
+      sortOrder,
+    );
+
+    const row = this.db.prepare(
+      "SELECT * FROM life_areas WHERE name = ?"
+    ).get(data.name.toLowerCase().trim()) as Record<string, unknown>;
+
+    return this.parseLifeAreaRow(row);
+  }
+
+  updateLifeArea(id: number, data: {
+    label?: string;
+    description?: string;
+    color?: string;
+  }): LifeAreaConfig | null {
+    const existing = this.db.prepare(
+      "SELECT * FROM life_areas WHERE id = ?"
+    ).get(id) as Record<string, unknown> | undefined;
+    if (!existing) return null;
+
+    const updates: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (data.label !== undefined) {
+      updates.push("label = ?");
+      params.push(data.label);
+    }
+    if (data.description !== undefined) {
+      updates.push("description = ?");
+      params.push(data.description);
+    }
+    if (data.color !== undefined) {
+      updates.push("color = ?");
+      params.push(data.color);
+    }
+
+    if (updates.length === 0) return this.parseLifeAreaRow(existing);
+
+    params.push(id);
+    this.db.prepare(
+      `UPDATE life_areas SET ${updates.join(", ")} WHERE id = ?`
+    ).run(...params);
+
+    const row = this.db.prepare(
+      "SELECT * FROM life_areas WHERE id = ?"
+    ).get(id) as Record<string, unknown>;
+    return this.parseLifeAreaRow(row);
+  }
+
+  archiveLifeArea(id: number): boolean {
+    const count = this.db.prepare(
+      "UPDATE life_areas SET active = 0 WHERE id = ?"
+    ).run(id);
+    return count > 0;
+  }
+
+  reorderLifeAreas(ids: number[]): void {
+    const transaction = this.db.transaction(() => {
+      const stmt = this.db.prepare(
+        "UPDATE life_areas SET sort_order = ? WHERE id = ?"
+      );
+      for (let i = 0; i < ids.length; i++) {
+        stmt.run(i, ids[i]);
+      }
+    });
+    transaction();
+  }
+
+  seedDefaultLifeAreas(): void {
+    const count = this.db.prepare(
+      "SELECT count(*) as cnt FROM life_areas"
+    ).get() as { cnt: number };
+
+    if (count.cnt > 0) return;
+
+    const defaults = [
+      { name: "work", label: "Work", description: "Professional work, career, job-related", color: "#818cf8" },
+      { name: "family", label: "Family", description: "Family relationships and responsibilities", color: "#ec4899" },
+      { name: "health", label: "Health", description: "Physical health, mental health, energy, fitness", color: "#f59e0b" },
+      { name: "finance", label: "Finance", description: "Money, budgeting, investments, financial planning", color: "#22c55e" },
+      { name: "learning", label: "Learning", description: "Education, skills, personal development", color: "#60a5fa" },
+      { name: "social", label: "Social", description: "Friends, networking, community", color: "#a855f7" },
+      { name: "creative", label: "Creative", description: "Making things, hobbies, side projects", color: "#06b6d4" },
+      { name: "home", label: "Home", description: "Living space, household management, chores", color: "#94a3b8" },
+    ];
+
+    for (let i = 0; i < defaults.length; i++) {
+      this.db.prepare(
+        "INSERT INTO life_areas (name, label, description, color, sort_order) VALUES (?, ?, ?, ?, ?)"
+      ).run(defaults[i].name, defaults[i].label, defaults[i].description, defaults[i].color, i);
+    }
+  }
+
+  private getNextLifeAreaSortOrder(): number {
+    const row = this.db.prepare(
+      "SELECT MAX(sort_order) as max_order FROM life_areas"
+    ).get() as { max_order: number | null };
+    return (row.max_order ?? -1) + 1;
+  }
+
+  private parseLifeAreaRow(row: Record<string, unknown>): LifeAreaConfig {
+    return {
+      id: row.id as number,
+      name: row.name as string,
+      label: row.label as string,
+      description: (row.description as string) || null,
+      color: row.color as string,
+      sort_order: row.sort_order as number,
+      active: (row.active as number) === 1,
+      created_at: row.created_at as string,
+    };
+  }
+
+  // ============================================
   // MANAGED TOPICS
   // ============================================
 
@@ -1058,38 +1206,21 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   // GARDEN ACTIONS LOG
   // ============================================
 
-  logGardenAction(
-    runId: string,
-    actionType: string,
-    details: Record<string, unknown>,
-    affectedIds: string[],
-  ): void {
+  logGardenAction(runId: string, actionType: string, details: Record<string, unknown>, affectedIds: string[]): void {
     this.db.prepare(
-      `INSERT INTO garden_actions (run_id, action_type, details, affected_ids)
-       VALUES (?, ?, ?, ?)`
-    ).run(
-      runId,
-      actionType,
-      JSON.stringify(details),
-      JSON.stringify(affectedIds),
-    );
+      `INSERT INTO garden_actions (run_id, action_type, details, affected_ids) VALUES (?, ?, ?, ?)`
+    ).run(runId, actionType, JSON.stringify(details), JSON.stringify(affectedIds));
   }
 
   getGardenLog(limit: number = 50): Array<{
-    id: number;
-    run_id: string;
-    action_type: string;
-    details: Record<string, unknown>;
-    affected_ids: string[];
-    created_at: string;
+    id: number; run_id: string; action_type: string;
+    details: Record<string, unknown>; affected_ids: string[]; created_at: string;
   }> {
     const rows = this.db.prepare(
       "SELECT * FROM garden_actions ORDER BY created_at DESC LIMIT ?"
     ).all(limit) as Array<Record<string, unknown>>;
-
     return rows.map((row) => ({
-      id: row.id as number,
-      run_id: row.run_id as string,
+      id: row.id as number, run_id: row.run_id as string,
       action_type: row.action_type as string,
       details: JSON.parse((row.details as string) || "{}"),
       affected_ids: JSON.parse((row.affected_ids as string) || "[]"),
@@ -1101,7 +1232,6 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     const row = this.db.prepare(
       "SELECT run_id, MAX(created_at) as created_at FROM garden_actions GROUP BY run_id ORDER BY created_at DESC LIMIT 1"
     ).get() as { run_id: string; created_at: string } | undefined;
-
     if (!row || !row.run_id) return null;
     return { run_id: row.run_id, created_at: row.created_at };
   }

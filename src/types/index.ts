@@ -35,16 +35,18 @@ export type Sentiment =
   | "neutral"
   | "mixed";
 
-export type LifeArea =
-  | "craft"
-  | "business"
-  | "systems"
-  | "health"
-  | "marriage"
-  | "relationships"
-  | "creative"
-  | "wild"
-  | "meta";
+export type LifeArea = string;
+
+export interface LifeAreaConfig {
+  id: number;
+  name: string;
+  label: string;
+  description: string | null;
+  color: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+}
 
 export type ConstraintType =
   | "domain rule"

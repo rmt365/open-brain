@@ -9,9 +9,6 @@ import {
   deletePreference,
 } from "../helpers/open-brain-client.js";
 
-const LIFE_AREAS = [
-  "craft", "business", "systems", "health", "marriage", "relationships", "creative", "wild", "meta",
-] as const;
 
 const MIME_TYPES = [
   "image/jpeg", "image/png", "image/webp", "application/pdf",
@@ -182,7 +179,7 @@ const CaptureTool = CreateCompoundTool(
   {
     text: z.string().optional().describe("The thought content to capture (for action: thought)"),
     url: z.string().optional().describe("The URL to ingest (for action: url)"),
-    life_area: z.enum(LIFE_AREAS).optional().describe("Life area to assign (optional — auto-classified if not provided)"),
+    life_area: z.string().optional().describe("Life area to assign (optional — auto-classified if not provided)"),
     file_data: z.string().optional().describe("Base64-encoded file data (for action: document)"),
     filename: z.string().optional().describe("Original filename e.g. 'receipt.jpg' (for action: document)"),
     mime_type: z.enum(MIME_TYPES).optional().describe("MIME type of the file (for action: document)"),

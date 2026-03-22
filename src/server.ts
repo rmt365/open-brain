@@ -9,6 +9,7 @@ import type { OpenBrainDatabaseManager } from "./db/openBrainDatabaseManager.ts"
 import { createThoughtRoutes } from "./routes/thoughts.ts";
 import { createPreferenceRoutes } from "./routes/preferences.ts";
 import { createTopicRoutes } from "./routes/topics.ts";
+import { createLifeAreaRoutes } from "./routes/life-areas.ts";
 import { createDocumentRoutes } from "./routes/documents.ts";
 import { createUIRoutes } from "./ui/routes.ts";
 import { ThoughtManager } from "./logic/thoughts.ts";
@@ -86,6 +87,9 @@ export class OpenBrainServer {
 
     // Topic management routes (managed topics + suggestions)
     this.app.route("/topics", createTopicRoutes(this.dbManager));
+
+    // Life area management routes
+    this.app.route("/life-areas", createLifeAreaRoutes(this.dbManager));
 
     // Document upload (image/PDF extraction via Claude vision)
     this.app.route("/documents", createDocumentRoutes(this.thoughtManager, this.config));

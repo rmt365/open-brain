@@ -12,9 +12,6 @@ const THOUGHT_TYPES = [
   "note", "idea", "task", "question", "observation", "decision", "reference", "reflection",
 ] as const;
 
-const LIFE_AREAS = [
-  "craft", "business", "systems", "health", "marriage", "relationships", "creative", "wild", "meta",
-] as const;
 
 const ExploreTool = CreateCompoundTool(
   "explore",
@@ -211,7 +208,7 @@ const ExploreTool = CreateCompoundTool(
     limit: z.number().optional().describe("Maximum results (default varies by action)"),
     thought_id: z.string().optional().describe("Thought ID to find related thoughts for (for action: related)"),
     min_age_days: z.number().optional().default(30).describe("Min age in days for forgotten thoughts (default: 30)"),
-    life_area: z.enum(LIFE_AREAS).optional().describe("Filter by life area (for action: forgotten)"),
+    life_area: z.string().optional().describe("Filter by life area (for action: forgotten)"),
   },
 );
 

@@ -8,9 +8,6 @@ import {
   gardenTopics,
 } from "../helpers/open-brain-client.js";
 
-const LIFE_AREAS = [
-  "craft", "business", "systems", "health", "marriage", "relationships", "creative", "wild", "meta",
-] as const;
 
 const TopicsTool = CreateCompoundTool(
   "topics",
@@ -108,28 +105,14 @@ const TopicsTool = CreateCompoundTool(
           "",
         ];
 
-        if (summary.duplicates_merged > 0) {
-          lines.push(`- Duplicates merged: ${summary.duplicates_merged}`);
-        }
-        if (summary.suggestions_consolidated > 0) {
-          lines.push(`- Suggestions consolidated: ${summary.suggestions_consolidated}`);
-        }
-        if (summary.topics_approved > 0) {
-          lines.push(`- Topics auto-approved: ${summary.topics_approved}`);
-        }
-        if (summary.life_areas_assigned > 0) {
-          lines.push(`- Life areas assigned: ${summary.life_areas_assigned}`);
-        }
-        if (summary.thoughts_tagged > 0) {
-          lines.push(`- Thoughts retroactively tagged: ${summary.thoughts_tagged}`);
-        }
-        if (summary.skipped_steps.length > 0) {
-          lines.push(`- Skipped: ${summary.skipped_steps.join(", ")}`);
-        }
+        if (summary.duplicates_merged > 0) lines.push(`- Duplicates merged: ${summary.duplicates_merged}`);
+        if (summary.suggestions_consolidated > 0) lines.push(`- Suggestions consolidated: ${summary.suggestions_consolidated}`);
+        if (summary.topics_approved > 0) lines.push(`- Topics auto-approved: ${summary.topics_approved}`);
+        if (summary.life_areas_assigned > 0) lines.push(`- Life areas assigned: ${summary.life_areas_assigned}`);
+        if (summary.thoughts_tagged > 0) lines.push(`- Thoughts retroactively tagged: ${summary.thoughts_tagged}`);
+        if (summary.skipped_steps.length > 0) lines.push(`- Skipped: ${summary.skipped_steps.join(", ")}`);
 
-        if (actions.length === 0) {
-          lines.push("No actions needed — everything is clean.");
-        }
+        if (actions.length === 0) lines.push("No actions needed — everything is clean.");
 
         return textResult(lines.join("\n"));
       },
@@ -137,7 +120,7 @@ const TopicsTool = CreateCompoundTool(
   },
   {
     suggestion_id: z.number().optional().describe("The ID of the suggestion to approve or reject"),
-    life_area: z.enum(LIFE_AREAS).optional().describe("Life area to assign when approving"),
+    life_area: z.string().optional().describe("Life area to assign when approving"),
     include_suggestions: z.boolean().optional().default(true).describe("Include pending suggestions when listing (default: true)"),
     dry_run: z.boolean().optional().default(false).describe("Preview garden actions without making changes"),
   },

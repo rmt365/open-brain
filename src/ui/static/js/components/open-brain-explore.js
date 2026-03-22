@@ -4,18 +4,8 @@ import './backup-indicator.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
-const AREA_COLORS = {
-  craft: '#818cf8',
-  business: '#60a5fa',
-  systems: '#22c55e',
-  health: '#f59e0b',
-  marriage: '#ec4899',
-  relationships: '#a855f7',
-  creative: '#06b6d4',
-  wild: '#ef4444',
-  meta: '#94a3b8',
-  unclassified: '#475569',
-};
+// AREA_COLORS is now built dynamically from the API response
+const DEFAULT_UNCLASSIFIED_COLOR = '#475569';
 
 const TYPE_COLORS = {
   reference: '#818cf8',
@@ -28,7 +18,6 @@ const TYPE_COLORS = {
   reflection: '#ec4899',
 };
 
-const LIFE_AREAS = ['craft', 'business', 'systems', 'health', 'marriage', 'relationships', 'creative', 'wild', 'meta'];
 
 class OpenBrainExplore extends LitElement {
   static properties = {
@@ -43,6 +32,8 @@ class OpenBrainExplore extends LitElement {
     _suggestions: { type: Array, state: true },
     _showTriage: { type: Boolean, state: true },
     _triageLoading: { type: Boolean, state: true },
+    _lifeAreas: { type: Array, state: true },
+    _areaColors: { type: Object, state: true },
   };
 
   static styles = css`
@@ -356,10 +347,13 @@ class OpenBrainExplore extends LitElement {
     this._suggestions = [];
     this._showTriage = false;
     this._triageLoading = false;
+    this._lifeAreas = [];
+    this._areaColors = { unclassified: DEFAULT_UNCLASSIFIED_COLOR };
   }
 
   connectedCallback() {
     super.connectedCallback();
+    this._loadLifeAreas();
     this._loadBreakdown();
     this._loadSuggestions();
     window.addEventListener('popstate', this._handlePopState);
@@ -395,6 +389,23 @@ class OpenBrainExplore extends LitElement {
     const apiKey = localStorage.getItem('open-brain-api-key') || '';
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
     return headers;
+  }
+
+  async _loadLifeAreas() {
+    try {
+      const res = await fetch(`${BASE_PATH}/life-areas`, { headers: this._getHeaders() });
+      const json = await res.json();
+      if (json.success && json.data) {
+        this._lifeAreas = json.data;
+        const colors = { unclassified: DEFAULT_UNCLASSIFIED_COLOR };
+        for (const area of json.data) {
+          colors[area.name] = area.color;
+        }
+        this._areaColors = colors;
+      }
+    } catch (e) {
+      console.warn('Failed to load life areas:', e);
+    }
   }
 
   async _loadBreakdown() {
@@ -499,9 +510,9 @@ class OpenBrainExplore extends LitElement {
         children.push({ name: 'unclassified', value: this._treeData.unclassified.count });
       }
       // Ensure minimum representation for all life areas
-      for (const area of LIFE_AREAS) {
-        if (!children.find(c => c.name === area)) {
-          children.push({ name: area, value: 0.5 }); // placeholder
+      for (const area of this._lifeAreas) {
+        if (!children.find(c => c.name === area.name)) {
+          children.push({ name: area.name, value: 0.5 }); // placeholder
         }
       }
       return { name: 'brain', children };
@@ -611,8 +622,8 @@ class OpenBrainExplore extends LitElement {
     const leaves = this._computeLayout(data, width, height);
 
     const isRoot = level === 'root';
-    const colorMap = isRoot ? AREA_COLORS : {};
-    const parentColor = isRoot ? null : (AREA_COLORS[this._selectedArea] || AREA_COLORS.unclassified);
+    const colorMap = isRoot ? this._areaColors : {};
+    const parentColor = isRoot ? null : (this._areaColors[this._selectedArea] || this._areaColors.unclassified);
 
     return html`
       <div class="treemap-container" style="height: ${height}px; max-width: ${width}px; margin: 0 auto;">
@@ -698,8 +709,8 @@ class OpenBrainExplore extends LitElement {
                       <select class="edit-select"
                         @change=${(e) => this._updateThought(t.id, 'life_area', e.target.value)}
                         @blur=${() => { this._editingField = null; }}>
-                        ${LIFE_AREAS.map(area => html`
-                          <option value=${area} ?selected=${(t.life_area || t.auto_life_area) === area}>${area}</option>
+                        ${this._lifeAreas.map(area => html`
+                          <option value=${area.name} ?selected=${(t.life_area || t.auto_life_area) === area.name}>${area.name}</option>
                         `)}
                       </select>
                     ` : html`
@@ -749,7 +760,7 @@ class OpenBrainExplore extends LitElement {
               <span class="suggestion-name">${s.name}</span>
               <select class="suggestion-area-select" id="area-${s.id}">
                 <option value="">auto</option>
-                ${LIFE_AREAS.map(a => html`<option value=${a}>${a}</option>`)}
+                ${this._lifeAreas.map(a => html`<option value=${a.name}>${a.name}</option>`)}
               </select>
               <button class="suggestion-btn btn-approve"
                 @click=${() => {

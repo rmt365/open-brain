@@ -4,6 +4,7 @@ import type {
   Thought,
   ThoughtType,
   LifeArea,
+  LifeAreaConfig,
   SourceChannel,
   SearchResult,
   BrainStats,
@@ -86,12 +87,13 @@ export class ThoughtManager {
     const detectedUrls = thoughtType === "reference" ? [] : extractUrls(text);
     const isUrlOnly = detectedUrls.length > 0 && isUrlOnlyMessage(text, detectedUrls);
 
-    // Fetch managed topics for classification prompt
+    // Fetch managed topics and life areas for classification prompt
     const managedTopics = this.db.getManagedTopicNames();
+    const lifeAreas = this.db.getLifeAreas();
 
     if (isUrlOnly) {
       // URL-ONLY: skip initial embed/classify, fetch content, smart-replace, then embed+classify
-      await this.handleUrlOnlyCapture(thought, detectedUrls, managedTopics);
+      await this.handleUrlOnlyCapture(thought, detectedUrls, managedTopics, lifeAreas);
     } else {
       // NORMAL or URL-MENTIONED: embed and classify concurrently
       const asyncWork: Promise<unknown>[] = [
@@ -104,7 +106,7 @@ export class ThoughtManager {
               console.warn(`[OpenBrain:Capture] Embedding skipped for ${thought.id}`);
             }
           }),
-        classifyThought(text, this.config.llm.provider, this.config.llm.model, managedTopics)
+        classifyThought(text, this.config.llm.provider, this.config.llm.model, managedTopics, lifeAreas)
           .then((classification) => {
             if (classification) {
               this.db.updateClassification(thought.id, classification);
@@ -151,7 +153,8 @@ export class ThoughtManager {
   private async handleUrlOnlyCapture(
     thought: Thought,
     urls: string[],
-    managedTopics: string[]
+    managedTopics: string[],
+    lifeAreas: LifeAreaConfig[]
   ): Promise<void> {
     const primaryUrl = urls[0];
 
@@ -197,7 +200,7 @@ export class ThoughtManager {
       // Re-embed and re-classify with the new text
       const [embResult, classResult] = await Promise.allSettled([
         generateEmbedding(newText, this.config.embedding.ollamaUrl, this.config.embedding.model),
-        classifyThought(newText, this.config.llm.provider, this.config.llm.model, managedTopics),
+        classifyThought(newText, this.config.llm.provider, this.config.llm.model, managedTopics, lifeAreas),
       ]);
 
       if (embResult.status === "fulfilled" && embResult.value) {
@@ -226,7 +229,7 @@ export class ThoughtManager {
 
       const [embResult, classResult] = await Promise.allSettled([
         generateEmbedding(thought.text, this.config.embedding.ollamaUrl, this.config.embedding.model),
-        classifyThought(thought.text, this.config.llm.provider, this.config.llm.model, managedTopics),
+        classifyThought(thought.text, this.config.llm.provider, this.config.llm.model, managedTopics, lifeAreas),
       ]);
 
       if (embResult.status === "fulfilled" && embResult.value) {
@@ -426,11 +429,13 @@ export class ThoughtManager {
     if (!thought) return null;
 
     const managedTopics = this.db.getManagedTopicNames();
+    const lifeAreas = this.db.getLifeAreas();
     const classification = await classifyThought(
       thought.text,
       this.config.llm.provider,
       this.config.llm.model,
-      managedTopics
+      managedTopics,
+      lifeAreas
     );
 
     if (classification) {
@@ -485,12 +490,14 @@ export class ThoughtManager {
   async processUnclassified(batchSize: number = 50): Promise<{ processed: number; failed: number }> {
     const thoughts = this.db.getUnclassifiedThoughts(batchSize);
     const managedTopics = this.db.getManagedTopicNames();
+    const lifeAreas = this.db.getLifeAreas();
     const result = await processInChunks(thoughts, async (thought) => {
       const classification = await classifyThought(
         thought.text,
         this.config.llm.provider,
         this.config.llm.model,
-        managedTopics
+        managedTopics,
+        lifeAreas
       );
       if (classification) {
         this.db.updateClassification(thought.id, classification);
@@ -510,12 +517,14 @@ export class ThoughtManager {
   async processMissingLifeArea(batchSize: number = 50): Promise<{ processed: number; failed: number }> {
     const thoughts = this.db.getThoughtsMissingLifeArea(batchSize);
     const managedTopics = this.db.getManagedTopicNames();
+    const lifeAreas = this.db.getLifeAreas();
     const result = await processInChunks(thoughts, async (thought) => {
       const classification = await classifyThought(
         thought.text,
         this.config.llm.provider,
         this.config.llm.model,
-        managedTopics
+        managedTopics,
+        lifeAreas
       );
       if (classification) {
         this.db.updateClassification(thought.id, classification);

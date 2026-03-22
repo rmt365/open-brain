@@ -34,17 +34,7 @@ export const ThoughtStatusSchema = z.enum([
   "deleted",
 ]);
 
-export const LifeAreaSchema = z.enum([
-  "craft",
-  "business",
-  "systems",
-  "health",
-  "marriage",
-  "relationships",
-  "creative",
-  "wild",
-  "meta",
-]);
+export const LifeAreaSchema = z.string().min(1);
 
 // ============================================================
 // THOUGHT SCHEMAS
