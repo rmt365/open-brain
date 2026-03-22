@@ -760,6 +760,76 @@ class OpenBrainChat extends LitElement {
       background: rgba(239, 68, 68, 0.2);
     }
 
+    .pref-card--block {
+      border-left: 3px solid rgba(52, 211, 153, 0.6);
+    }
+
+    .pref-card-badge--artifact {
+      background: rgba(52, 211, 153, 0.15);
+      color: #6ee7b7;
+    }
+
+    .pref-card-content-preview {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow: hidden;
+      max-height: 4.5em;
+      margin-bottom: 4px;
+    }
+
+    .pref-form-toggle {
+      display: flex;
+      gap: 0;
+      margin-bottom: 4px;
+    }
+
+    .pref-form-toggle button {
+      flex: 1;
+      padding: 6px 12px;
+      border: 1px solid var(--input-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .pref-form-toggle button:first-child {
+      border-radius: 6px 0 0 6px;
+    }
+
+    .pref-form-toggle button:last-child {
+      border-radius: 0 6px 6px 0;
+      border-left: none;
+    }
+
+    .pref-form-toggle button.active {
+      background: var(--user-bubble);
+      color: white;
+      border-color: var(--user-bubble);
+    }
+
+    .pref-form-toggle button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .pref-content-textarea {
+      min-height: 120px !important;
+    }
+
+    .pref-format-label {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(52, 211, 153, 0.15);
+      color: #6ee7b7;
+      margin-bottom: 4px;
+    }
+
     /* Preference form */
     .pref-form {
       background: var(--system-bubble);
@@ -1439,22 +1509,30 @@ class OpenBrainChat extends LitElement {
   _openAddPrefForm() {
     this._prefEditing = null;
     this._prefFormData = {
+      format: 'rule',
       preference_name: '',
       domain: 'general',
       reject: '',
       want: '',
+      content: '',
       constraint_type: 'quality standard',
+      artifact_type: '',
+      purpose: '',
     };
   }
 
   _openEditPrefForm(pref) {
     this._prefEditing = pref.id;
     this._prefFormData = {
+      format: pref.format || 'rule',
       preference_name: pref.preference_name,
       domain: pref.domain,
-      reject: pref.reject,
-      want: pref.want,
+      reject: pref.reject || '',
+      want: pref.want || '',
+      content: pref.content || '',
       constraint_type: pref.constraint_type,
+      artifact_type: pref.artifact_type || '',
+      purpose: pref.purpose || '',
     };
   }
 
@@ -1466,20 +1544,39 @@ class OpenBrainChat extends LitElement {
   async _savePref() {
     if (!this._prefFormData) return;
     const data = this._prefFormData;
-    if (!data.preference_name || !data.reject || !data.want) return;
+    if (!data.preference_name) return;
+    if (data.format === 'block') {
+      if (!data.content) return;
+    } else {
+      if (!data.reject || !data.want) return;
+    }
+
+    const payload = { ...data };
+    if (payload.format === 'rule') {
+      delete payload.content;
+      delete payload.artifact_type;
+      delete payload.purpose;
+    } else {
+      payload.reject = '';
+      payload.want = '';
+    }
+    if (!payload.artifact_type) delete payload.artifact_type;
+    if (!payload.purpose) delete payload.purpose;
 
     try {
       if (this._prefEditing) {
+        // format is immutable — omit from PUT
+        const { format, ...updatePayload } = payload;
         await fetch(`${BASE_PATH}/preferences/${this._prefEditing}`, {
           method: 'PUT',
           headers: this._getHeaders(),
-          body: JSON.stringify(data),
+          body: JSON.stringify(updatePayload),
         });
       } else {
         await fetch(`${BASE_PATH}/preferences`, {
           method: 'POST',
           headers: this._getHeaders(),
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
       }
       this._prefFormData = null;
@@ -1526,6 +1623,13 @@ class OpenBrainChat extends LitElement {
     }
   }
 
+  _truncateContent(content, maxLines = 3) {
+    if (!content) return '';
+    const lines = content.split('\n').slice(0, maxLines);
+    const truncated = lines.join('\n');
+    return truncated.length < content.length ? truncated + '...' : truncated;
+  }
+
   _renderPreferencesPanel() {
     // Group preferences by domain
     const grouped = {};
@@ -1562,17 +1666,24 @@ class OpenBrainChat extends LitElement {
               <div class="pref-domain-label">${domain}</div>
               ${grouped[domain].map((p) =>
                 this._prefEditing === p.id ? this._renderPrefForm() : html`
-                  <div class="pref-card">
+                  <div class="pref-card ${p.format === 'block' ? 'pref-card--block' : ''}">
                     <div class="pref-card-header">
                       <span class="pref-card-name">${p.preference_name}</span>
+                      ${p.artifact_type ? html`
+                        <span class="pref-card-badge pref-card-badge--artifact">${p.artifact_type}</span>
+                      ` : ''}
                       <span class="pref-card-badge">${p.constraint_type}</span>
                     </div>
-                    <div class="pref-card-field">
-                      <strong>Reject: </strong><span>${p.reject}</span>
-                    </div>
-                    <div class="pref-card-field">
-                      <strong>Want: </strong><span>${p.want}</span>
-                    </div>
+                    ${p.format === 'block' ? html`
+                      <div class="pref-card-content-preview">${this._truncateContent(p.content, 3)}</div>
+                    ` : html`
+                      <div class="pref-card-field">
+                        <strong>Reject: </strong><span>${p.reject}</span>
+                      </div>
+                      <div class="pref-card-field">
+                        <strong>Want: </strong><span>${p.want}</span>
+                      </div>
+                    `}
                     <div class="pref-card-actions">
                       <button class="pref-edit-btn" @click=${() => this._openEditPrefForm(p)}>Edit</button>
                       <button class="pref-delete-btn" @click=${() => this._deletePref(p.id)}>Delete</button>
@@ -1589,6 +1700,7 @@ class OpenBrainChat extends LitElement {
 
   _renderPrefForm() {
     const d = this._prefFormData;
+    const isEditing = !!this._prefEditing;
     return html`
       <div class="pref-form">
         <label>Preference Name</label>
@@ -1599,13 +1711,49 @@ class OpenBrainChat extends LitElement {
         <input type="text" .value=${d.domain}
           @input=${(e) => { this._prefFormData = { ...d, domain: e.target.value }; }} />
 
-        <label>Reject</label>
-        <textarea .value=${d.reject}
-          @input=${(e) => { this._prefFormData = { ...d, reject: e.target.value }; }}></textarea>
+        <label>Format</label>
+        ${isEditing ? html`
+          <span class="pref-format-label">${d.format}</span>
+        ` : html`
+          <div class="pref-form-toggle">
+            <button class=${d.format === 'rule' ? 'active' : ''}
+              @click=${() => { this._prefFormData = { ...d, format: 'rule' }; }}>Rule</button>
+            <button class=${d.format === 'block' ? 'active' : ''}
+              @click=${() => { this._prefFormData = { ...d, format: 'block' }; }}>Block</button>
+          </div>
+        `}
 
-        <label>Want</label>
-        <textarea .value=${d.want}
-          @input=${(e) => { this._prefFormData = { ...d, want: e.target.value }; }}></textarea>
+        ${d.format === 'block' ? html`
+          <label>Content</label>
+          <textarea class="pref-content-textarea" .value=${d.content}
+            @input=${(e) => { this._prefFormData = { ...d, content: e.target.value }; }}
+            placeholder="Markdown content for this block..."></textarea>
+
+          <label>Artifact Type (optional)</label>
+          <select .value=${d.artifact_type}
+            @change=${(e) => { this._prefFormData = { ...d, artifact_type: e.target.value }; }}>
+            <option value="">None</option>
+            <option value="claude-md">claude-md</option>
+            <option value="mcp-server">mcp-server</option>
+            <option value="sub-agent">sub-agent</option>
+            <option value="settings">settings</option>
+            <option value="hook">hook</option>
+            <option value="tool-config">tool-config</option>
+          </select>
+
+          <label>Purpose (optional)</label>
+          <input type="text" .value=${d.purpose}
+            @input=${(e) => { this._prefFormData = { ...d, purpose: e.target.value }; }}
+            placeholder="e.g. commit-style, code-review" />
+        ` : html`
+          <label>Reject</label>
+          <textarea .value=${d.reject}
+            @input=${(e) => { this._prefFormData = { ...d, reject: e.target.value }; }}></textarea>
+
+          <label>Want</label>
+          <textarea .value=${d.want}
+            @input=${(e) => { this._prefFormData = { ...d, want: e.target.value }; }}></textarea>
+        `}
 
         <label>Constraint Type</label>
         <select .value=${d.constraint_type}
@@ -1619,7 +1767,7 @@ class OpenBrainChat extends LitElement {
         <div class="btn-row">
           <button class="btn-secondary" @click=${this._cancelPrefForm}>Cancel</button>
           <button class="btn-primary" @click=${this._savePref}>
-            ${this._prefEditing ? 'Update' : 'Add'}
+            ${isEditing ? 'Update' : 'Add'}
           </button>
         </div>
       </div>
