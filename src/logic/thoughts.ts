@@ -14,6 +14,7 @@ import type {
 import { generateEmbedding } from "./embeddings.ts";
 import { classifyThought } from "./classifier.ts";
 import { extractUrlContent, type ExtractedContent } from "./extractor.ts";
+import { summarizeUrlContent } from "./summarizer.ts";
 import { chunkText, needsChunking } from "./chunker.ts";
 import { extractUrls, isUrlOnlyMessage } from "./url-detection.ts";
 import { DocumentStorage } from "./document-storage.ts";
@@ -154,15 +155,29 @@ export class ThoughtManager {
   ): Promise<void> {
     const primaryUrl = urls[0];
 
-    // Fetch and chunk the primary URL
-    const content = await this.ingestUrlContent(thought.id, primaryUrl);
+    // Fetch the primary URL content
+    const content = await this.fetchUrlContent(primaryUrl);
 
     if (content) {
-      // Smart replace: update thought with fetched content
-      const preview = content.text.length > 500
-        ? content.text.substring(0, 500) + "..."
-        : content.text;
-      const newText = `${content.title}\n\n${preview}`;
+      // Summarize the fetched content using LLM
+      const summary = await summarizeUrlContent(
+        content.title,
+        content.url,
+        content.text,
+        this.config.llm.provider,
+        this.config.llm.model
+      );
+
+      // Use summary if available, fall back to title+preview
+      let newText: string;
+      if (summary) {
+        newText = summary;
+      } else {
+        const preview = content.text.length > 500
+          ? content.text.substring(0, 500) + "..."
+          : content.text;
+        newText = `${content.title}\n\n${preview}`;
+      }
 
       this.db.updateThoughtForUrlIngest(thought.id, {
         text: newText,
@@ -173,12 +188,13 @@ export class ThoughtManager {
           url: content.url,
           title: content.title,
           fetchedAt: content.fetchedAt,
+          full_text: content.text,
         },
       });
 
-      console.log(`[OpenBrain:Capture] Smart-replaced thought ${thought.id} with content from ${primaryUrl}`);
+      console.log(`[OpenBrain:Capture] Smart-replaced thought ${thought.id} with ${summary ? "summary" : "preview"} from ${primaryUrl}`);
 
-      // Re-embed and re-classify with the fetched content
+      // Re-embed and re-classify with the new text
       const [embResult, classResult] = await Promise.allSettled([
         generateEmbedding(newText, this.config.embedding.ollamaUrl, this.config.embedding.model),
         classifyThought(newText, this.config.llm.provider, this.config.llm.model, managedTopics),
@@ -577,8 +593,8 @@ export class ThoughtManager {
   }
 
   /**
-   * Ingest a URL: fetch content, store as a reference thought, chunk and embed.
-   * The thought text stores a summary/title; chunks store the full content for search.
+   * Ingest a URL: fetch content, summarize with LLM, store as a reference thought.
+   * The thought text stores the AI summary; full text is preserved in metadata.
    */
   async ingestUrl(url: string, lifeArea?: LifeArea): Promise<Thought | null> {
     const content = await this.fetchUrlContent(url);
@@ -587,25 +603,36 @@ export class ThoughtManager {
       return null;
     }
 
-    // Create a summary for the thought text (title + first 500 chars)
-    const preview = content.text.length > 500
-      ? content.text.substring(0, 500) + "..."
-      : content.text;
-    const thoughtText = `${content.title}\n\n${preview}`;
+    // Summarize the content using LLM
+    const summary = await summarizeUrlContent(
+      content.title,
+      content.url,
+      content.text,
+      this.config.llm.provider,
+      this.config.llm.model
+    );
+
+    // Use summary if available, fall back to title+preview
+    let thoughtText: string;
+    if (summary) {
+      thoughtText = summary;
+    } else {
+      const preview = content.text.length > 500
+        ? content.text.substring(0, 500) + "..."
+        : content.text;
+      thoughtText = `${content.title}\n\n${preview}`;
+    }
 
     // Store as a reference thought with source_url (capture skips URL detection for "reference" type)
     const thought = await this.capture(
       thoughtText,
       "api",
-      { url: content.url, title: content.title, fetchedAt: content.fetchedAt },
+      { url: content.url, title: content.title, fetchedAt: content.fetchedAt, full_text: content.text },
       "reference",
       undefined,
       lifeArea,
       url
     );
-
-    // Chunk and embed using shared helper (pass already-fetched content)
-    await this.chunkAndEmbed(thought.id, content);
 
     return this.db.getThought(thought.id) || thought;
   }

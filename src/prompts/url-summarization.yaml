@@ -1,0 +1,39 @@
+# Open Brain - URL Content Summarization Prompt
+# Summarizes scraped article content into concise takeaways
+# Used by summarizer.ts via LLM Provider
+
+version: "1.0"
+service: "open-brain"
+category: "summarization"
+
+system_prompts:
+  default: |
+    You are a concise article summarizer. Respond with plain text, no markdown headers.
+
+templates:
+  summarize_url:
+    description: "Summarize URL content into key takeaways"
+    variables:
+      - title
+      - url
+      - article_text
+    prompt: |
+      Summarize the following article:
+
+      Title: {{title}}
+      URL: {{url}}
+
+      Article text:
+      {{article_text}}
+
+      Provide:
+      - 3-5 key takeaways
+      - Why it matters
+      - Lessons/implications
+
+      Target 200-400 words. Use plain text only, no markdown formatting or headers.
+
+models:
+  default: "gpt-4o-mini"
+  temperature: 0.3
+  max_tokens: 1000
