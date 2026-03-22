@@ -9,6 +9,7 @@ import type {
   LifeArea,
   ConstraintType,
   PreferenceFormat,
+  ArtifactType,
   BrainStats,
   CaptureThoughtRequest,
   UpdateThoughtRequest,
@@ -998,12 +999,14 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     format?: PreferenceFormat;
     content?: string;
     constraint_type?: ConstraintType;
+    artifact_type?: ArtifactType;
+    purpose?: string;
   }): TastePreference {
     const id = crypto.randomUUID();
     const format = data.format || "rule";
     this.db.prepare(`
-      INSERT INTO taste_preferences (id, preference_name, domain, reject, want, format, content, constraint_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO taste_preferences (id, preference_name, domain, reject, want, format, content, constraint_type, artifact_type, purpose)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.preference_name,
@@ -1012,7 +1015,9 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       data.want || "",
       format,
       format === "block" ? (data.content || null) : null,
-      data.constraint_type || "quality standard"
+      data.constraint_type || "quality standard",
+      data.artifact_type || null,
+      data.purpose || null,
     );
     return this.getPreference(id)!;
   }
@@ -1024,7 +1029,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     return row ? this.parsePreferenceRow(row) : null;
   }
 
-  listPreferences(domain?: string, constraintType?: ConstraintType): TastePreference[] {
+  listPreferences(domain?: string, constraintType?: ConstraintType, artifactType?: ArtifactType): TastePreference[] {
     let query = "SELECT * FROM taste_preferences WHERE 1=1";
     const params: string[] = [];
 
@@ -1035,6 +1040,10 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     if (constraintType) {
       query += " AND constraint_type = ?";
       params.push(constraintType);
+    }
+    if (artifactType) {
+      query += " AND artifact_type = ?";
+      params.push(artifactType);
     }
 
     query += " ORDER BY domain, constraint_type, preference_name";
@@ -1050,6 +1059,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     want?: string;
     content?: string;
     constraint_type?: ConstraintType;
+    artifact_type?: ArtifactType;
+    purpose?: string;
   }): TastePreference | null {
     const existing = this.getPreference(id);
     if (!existing) return null;
@@ -1081,12 +1092,20 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       updates.push("constraint_type = ?");
       params.push(data.constraint_type);
     }
+    if (data.artifact_type !== undefined) {
+      updates.push("artifact_type = ?");
+      params.push(data.artifact_type);
+    }
+    if (data.purpose !== undefined) {
+      updates.push("purpose = ?");
+      params.push(data.purpose);
+    }
 
     if (updates.length === 0) return existing;
 
     params.push(id);
     this.db.prepare(
-      `UPDATE taste_preferences SET ${updates.join(", ")} WHERE id = ?`
+      `UPDATE taste_preferences SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(...params);
 
     return this.getPreference(id);
@@ -1129,6 +1148,68 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     ).all() as Array<{ domain: string; count: number }>;
   }
 
+  findByPurpose(purpose: string, domains?: string[]): TastePreference[] {
+    let query = "SELECT * FROM taste_preferences WHERE purpose = ?";
+    const params: string[] = [purpose];
+
+    if (domains && domains.length > 0) {
+      const placeholders = domains.map(() => "?").join(", ");
+      query += ` AND domain IN (${placeholders})`;
+      params.push(...domains);
+    }
+
+    query += " ORDER BY domain, preference_name";
+    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parsePreferenceRow(row));
+  }
+
+  upsertConfigArtifact(domain: string, artifactName: string, data: {
+    content: string;
+    artifact_type: ArtifactType;
+    purpose?: string;
+    constraint_type?: ConstraintType;
+  }): TastePreference {
+    const existing = this.db.prepare(
+      "SELECT * FROM taste_preferences WHERE domain = ? AND preference_name = ? AND artifact_type IS NOT NULL"
+    ).get(domain, artifactName) as Record<string, unknown> | undefined;
+
+    if (existing) {
+      return this.updatePreference(existing.id as string, {
+        content: data.content,
+        artifact_type: data.artifact_type,
+        purpose: data.purpose,
+        constraint_type: data.constraint_type,
+      })!;
+    }
+
+    return this.createPreference({
+      preference_name: artifactName,
+      domain,
+      format: "block",
+      content: data.content,
+      artifact_type: data.artifact_type,
+      purpose: data.purpose,
+      constraint_type: data.constraint_type || "domain rule",
+    });
+  }
+
+  listConfigProfiles(): Array<{ domain: string; total: number; by_type: Record<string, number> }> {
+    const rows = this.db.prepare(
+      "SELECT domain, artifact_type, COUNT(*) as count FROM taste_preferences WHERE artifact_type IS NOT NULL GROUP BY domain, artifact_type ORDER BY domain"
+    ).all() as Array<{ domain: string; artifact_type: string; count: number }>;
+
+    const profiles: Record<string, { total: number; by_type: Record<string, number> }> = {};
+    for (const row of rows) {
+      if (!profiles[row.domain]) {
+        profiles[row.domain] = { total: 0, by_type: {} };
+      }
+      profiles[row.domain].total += row.count;
+      profiles[row.domain].by_type[row.artifact_type] = row.count;
+    }
+
+    return Object.entries(profiles).map(([domain, data]) => ({ domain, ...data }));
+  }
+
   private parsePreferenceRow(row: Record<string, unknown>): TastePreference {
     return {
       id: row.id as string,
@@ -1139,6 +1220,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       format: (row.format as PreferenceFormat) || "rule",
       content: (row.content as string) || null,
       constraint_type: row.constraint_type as ConstraintType,
+      artifact_type: (row.artifact_type as ArtifactType) || null,
+      purpose: (row.purpose as string) || null,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
     };

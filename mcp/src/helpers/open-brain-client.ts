@@ -173,6 +173,8 @@ interface TastePreference {
   format: string;
   content: string | null;
   constraint_type: string;
+  artifact_type: string | null;
+  purpose: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -222,6 +224,65 @@ export async function listDomains(): Promise<ApiResponse<Array<{ domain: string;
 export async function deletePreference(id: number): Promise<ApiResponse<unknown>> {
   return request<ApiResponse<unknown>>(`/preferences/${id}`, {
     method: "DELETE",
+  });
+}
+
+// ============================================================
+// CONFIG ARTIFACTS
+// ============================================================
+
+export async function upsertConfigArtifact(data: {
+  preference_name: string;
+  domain: string;
+  content: string;
+  artifact_type: string;
+  purpose?: string;
+  constraint_type?: string;
+}): Promise<ApiResponse<TastePreference>> {
+  return request<ApiResponse<TastePreference>>("/preferences/upsert", {
+    method: "PUT",
+    body: JSON.stringify({
+      ...data,
+      format: "block",
+    }),
+  });
+}
+
+export async function listProfileArtifacts(
+  domain: string,
+  artifactType?: string,
+): Promise<ApiResponse<TastePreference[]>> {
+  const searchParams = new URLSearchParams({ domain });
+  if (artifactType) searchParams.set("artifact_type", artifactType);
+  return request<ApiResponse<TastePreference[]>>(`/preferences?${searchParams.toString()}`);
+}
+
+interface ConfigProfile {
+  domain: string;
+  total: number;
+  by_type: Record<string, number>;
+}
+
+export async function listConfigProfiles(): Promise<ApiResponse<ConfigProfile[]>> {
+  return request<ApiResponse<ConfigProfile[]>>("/preferences/profiles");
+}
+
+export async function findByPurpose(
+  purpose: string,
+  domains?: string[],
+): Promise<ApiResponse<TastePreference[]>> {
+  const searchParams = new URLSearchParams({ purpose });
+  if (domains?.length) searchParams.set("domains", domains.join(","));
+  return request<ApiResponse<TastePreference[]>>(`/preferences/by-purpose?${searchParams.toString()}`);
+}
+
+export async function updatePreference(
+  id: number,
+  data: Record<string, unknown>,
+): Promise<ApiResponse<TastePreference>> {
+  return request<ApiResponse<TastePreference>>(`/preferences/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 }
 

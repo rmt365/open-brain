@@ -105,6 +105,15 @@ export const ConstraintTypeSchema = z.enum([
 
 export const PreferenceFormatSchema = z.enum(["rule", "block"]);
 
+export const ArtifactTypeSchema = z.enum([
+  "claude-md",
+  "mcp-server",
+  "sub-agent",
+  "settings",
+  "hook",
+  "tool-config",
+]);
+
 export const CreatePreferenceSchema = z.object({
   preference_name: z.string().min(1, "Preference name is required"),
   domain: z.string().min(1).default("general"),
@@ -113,6 +122,8 @@ export const CreatePreferenceSchema = z.object({
   want: z.string().optional(),
   content: z.string().optional(),
   constraint_type: ConstraintTypeSchema.default("quality standard"),
+  artifact_type: ArtifactTypeSchema.optional(),
+  purpose: z.string().min(1).optional(),
 }).refine(
   (d) => d.format === "block" ? !!d.content : (!!d.reject && !!d.want),
   { message: "Rules require reject+want; blocks require content" },
@@ -129,6 +140,8 @@ export const UpdatePreferenceSchema = z.object({
   want: z.string().min(1).optional(),
   content: z.string().min(1).optional(),
   constraint_type: ConstraintTypeSchema.optional(),
+  artifact_type: ArtifactTypeSchema.optional(),
+  purpose: z.string().min(1).optional(),
 });
 
 // ============================================================
