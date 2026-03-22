@@ -24,6 +24,8 @@ export interface ServiceConfig {
   apiKey: string | null;
   wasabi: WasabiConfig | null;
   instanceName: string;
+  enableLitestream: boolean;
+  databasePath: string;
 }
 
 export interface RawConfig {

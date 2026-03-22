@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import { hierarchy, treemap, treemapSquarify } from 'https://cdn.jsdelivr.net/npm/d3-hierarchy@3/+esm';
+import './backup-indicator.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -771,6 +772,7 @@ class OpenBrainExplore extends LitElement {
         <span class="header-title">Explore</span>
         <a href="${BASE_PATH}/ui/brain" class="header-nav-link" title="Capture thoughts">💬</a>
         <a href="${BASE_PATH}/ui/browse" class="header-nav-link" title="Browse thoughts">📚</a>
+        <backup-indicator></backup-indicator>
       </div>
 
       ${this._renderBreadcrumb()}

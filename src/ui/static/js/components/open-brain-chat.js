@@ -1,5 +1,6 @@
 import { LitElement, html, css, unsafeHTML } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked@15/lib/marked.esm.js';
+import './backup-indicator.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -1858,6 +1859,7 @@ class OpenBrainChat extends LitElement {
         <div class="header-right">
           <a href="${BASE_PATH}/ui/browse" class="header-nav-link" title="Browse thoughts">&#128218;</a>
           <a href="${BASE_PATH}/ui/explore" class="header-nav-link" title="Explore brain">&#127758;</a>
+          <backup-indicator></backup-indicator>
           <div class="header-status">
             <div class="status-dot ${this.online ? '' : 'offline'}"></div>
             ${this.online ? 'Online' : 'Offline'}

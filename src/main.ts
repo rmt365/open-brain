@@ -41,6 +41,8 @@ const config: ServiceConfig = {
   apiKey: raw.apiKey,
   wasabi: raw.wasabi,
   instanceName: raw.instanceName,
+  enableLitestream: Deno.env.get("ENABLE_LITESTREAM") === "true",
+  databasePath: env.dbPath,
 };
 
 // Log configuration

@@ -21,7 +21,7 @@ export function createAuthMiddleware(apiKey: string | null) {
     // Skip auth for CORS preflight and public endpoints
     if (
       c.req.method === "OPTIONS" ||
-      path === "/health" ||
+      path.startsWith("/health") ||
       path === "/manifest" ||
       path.startsWith("/ui") ||
       (c.req.method === "GET" && path.startsWith("/documents/"))

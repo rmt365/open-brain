@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import './backup-indicator.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -545,6 +546,7 @@ class OpenBrainBrowse extends LitElement {
         <span class="header-title">Open Brain</span>
         <a href="${BASE_PATH}/ui/brain" class="header-nav-link" title="Capture thoughts">&#128172;</a>
         <a href="${BASE_PATH}/ui/explore" class="header-nav-link" title="Explore brain">&#127758;</a>
+        <backup-indicator></backup-indicator>
       </div>
 
       <div class="controls">

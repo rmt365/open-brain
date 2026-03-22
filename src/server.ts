@@ -14,6 +14,7 @@ import { createUIRoutes } from "./ui/routes.ts";
 import { ThoughtManager } from "./logic/thoughts.ts";
 import { createAuthMiddleware } from "./middleware/auth.ts";
 import type { ExtensionRegistration } from "./extensions/types.ts";
+import { getBackupHealth } from "./logic/backup-health.ts";
 
 // ============================================================
 // OPEN BRAIN SERVER CLASS
@@ -64,6 +65,15 @@ export class OpenBrainServer {
         service: "open-brain",
         timestamp: new Date().toISOString(),
       });
+    });
+
+    // Backup health endpoint
+    this.app.get("/health/backup", async (c) => {
+      const status = await getBackupHealth(
+        this.config.enableLitestream,
+        this.config.databasePath,
+      );
+      return c.json(status);
     });
 
     // Manifest endpoint
