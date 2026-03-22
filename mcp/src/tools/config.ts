@@ -120,7 +120,7 @@ Workflow:
         }
 
         // Get all artifacts from each domain
-        const allArtifacts: Array<{ domain: string; name: string; purpose: string; artifact_type: string; id: number }> = [];
+        const allArtifacts: Array<{ domain: string; name: string; purpose: string; artifact_type: string; id: string }> = [];
 
         for (const domain of domainList) {
           const response = await listProfileArtifacts(domain);
@@ -132,7 +132,7 @@ Workflow:
                   name: a.preference_name,
                   purpose: a.purpose,
                   artifact_type: a.artifact_type,
-                  id: a.id as number,
+                  id: a.id,
                 });
               }
             }
@@ -184,7 +184,7 @@ Workflow:
         if (args.purpose !== undefined) data.purpose = args.purpose;
         if (args.domain !== undefined) data.domain = args.domain;
 
-        const response = await updatePreference(args.preference_id as number, data);
+        const response = await updatePreference(args.preference_id as string, data);
 
         if (!response.success || !response.data) {
           return textResult(`Failed to update artifact: ${response.error || "Not found"}`, true);
@@ -203,7 +203,7 @@ Workflow:
       description: "Delete a config artifact. Requires: preference_id.",
       required: ["preference_id"],
       handler: async (args) => {
-        const response = await deletePreference(args.preference_id as number);
+        const response = await deletePreference(args.preference_id as string);
 
         if (!response.success) {
           return textResult(`Failed to remove artifact: ${response.error || "Not found"}`, true);
@@ -221,7 +221,7 @@ Workflow:
     purpose: z.string().optional().describe("Semantic purpose tag for overlap detection (e.g. 'code-simplification', 'testing', 'linting')"),
     constraint_type: z.enum(CONSTRAINT_TYPES).optional().describe("Constraint classification"),
     domains: z.string().optional().describe("Comma-separated domain names for compare action"),
-    preference_id: z.number().optional().describe("Artifact ID for update/remove actions"),
+    preference_id: z.string().optional().describe("Artifact ID for update/remove actions"),
   },
 );
 

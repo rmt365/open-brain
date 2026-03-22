@@ -165,7 +165,7 @@ export async function getPreferencesBlock(
 // ============================================================
 
 interface TastePreference {
-  id: number;
+  id: string;
   preference_name: string;
   domain: string;
   reject: string;
@@ -221,7 +221,7 @@ export async function listDomains(): Promise<ApiResponse<Array<{ domain: string;
   return request<ApiResponse<Array<{ domain: string; count: number }>>>("/preferences/domains");
 }
 
-export async function deletePreference(id: number): Promise<ApiResponse<unknown>> {
+export async function deletePreference(id: string | number): Promise<ApiResponse<unknown>> {
   return request<ApiResponse<unknown>>(`/preferences/${id}`, {
     method: "DELETE",
   });
@@ -277,7 +277,7 @@ export async function findByPurpose(
 }
 
 export async function updatePreference(
-  id: number,
+  id: string | number,
   data: Record<string, unknown>,
 ): Promise<ApiResponse<TastePreference>> {
   return request<ApiResponse<TastePreference>>(`/preferences/${id}`, {

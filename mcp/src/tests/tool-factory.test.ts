@@ -20,6 +20,12 @@ vi.mock("../helpers/open-brain-client.js", () => ({
   getHouseholdItem: vi.fn(),
   createHouseholdVendor: vi.fn(),
   listHouseholdVendors: vi.fn(),
+  createBlock: vi.fn(),
+  upsertConfigArtifact: vi.fn(),
+  listConfigProfiles: vi.fn(),
+  listProfileArtifacts: vi.fn(),
+  findByPurpose: vi.fn(),
+  updatePreference: vi.fn(),
 }));
 
 describe("ToolFactory", () => {
@@ -35,11 +41,12 @@ describe("ToolFactory", () => {
 
     ToolFactory(mockServer as never);
 
-    expect(registered).toHaveLength(5);
+    expect(registered).toHaveLength(6);
     expect(registered).toContain("search_brain");
     expect(registered).toContain("capture");
     expect(registered).toContain("explore");
     expect(registered).toContain("household");
     expect(registered).toContain("topics");
+    expect(registered).toContain("config");
   });
 });

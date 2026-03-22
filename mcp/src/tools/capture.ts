@@ -169,7 +169,7 @@ const CaptureTool = CreateCompoundTool(
       description: "Remove a previously recorded preference (requires preference_id)",
       required: ["preference_id"],
       handler: async (args) => {
-        const response = await deletePreference(args.preference_id as number);
+        const response = await deletePreference(args.preference_id as string);
 
         if (!response.success) {
           return textResult(`Failed to remove preference: ${response.error || "Not found"}`, true);
@@ -193,7 +193,7 @@ const CaptureTool = CreateCompoundTool(
     reject: z.string().optional().describe("What the user does NOT want (for action: preference)"),
     want: z.string().optional().describe("What the user DOES want (for action: preference)"),
     constraint_type: z.enum(CONSTRAINT_TYPES).optional().describe("Type of constraint (for action: preference)"),
-    preference_id: z.number().optional().describe("Preference ID to remove (for action: remove_preference)"),
+    preference_id: z.string().optional().describe("Preference ID to remove (for action: remove_preference)"),
   },
 );
 
