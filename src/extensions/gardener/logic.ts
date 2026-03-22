@@ -115,33 +115,33 @@ export class GardenAgent {
     `).all() as Array<{ id: number; name: string }>;
 
     for (const topic of topicsWithoutArea) {
-      // Look at auto_life_area of thoughts that have this topic in auto_topics
+      // Look at life_area (or auto_life_area) of thoughts that have this topic in auto_topics
       const areaVotes = raw.prepare(`
-        SELECT auto_life_area, COUNT(*) as cnt
+        SELECT COALESCE(life_area, auto_life_area) as area, COUNT(*) as cnt
         FROM thoughts
-        WHERE auto_life_area IS NOT NULL
+        WHERE COALESCE(life_area, auto_life_area) IS NOT NULL
           AND status = 'active'
           AND auto_topics IS NOT NULL
           AND EXISTS (
             SELECT 1 FROM JSON_EACH(thoughts.auto_topics) je
             WHERE je.value = ?
           )
-        GROUP BY auto_life_area
+        GROUP BY area
         ORDER BY cnt DESC
         LIMIT 1
-      `).get(topic.name) as { auto_life_area: string; cnt: number } | undefined;
+      `).get(topic.name) as { area: string; cnt: number } | undefined;
 
       if (areaVotes) {
         raw.prepare(
           "UPDATE managed_topics SET life_area = ? WHERE id = ?"
-        ).run(areaVotes.auto_life_area, topic.id);
+        ).run(areaVotes.area, topic.id);
 
         actions.push({
           type: "auto_assign_life_area",
           details: {
             topic_id: topic.id,
             topic_name: topic.name,
-            assigned_life_area: areaVotes.auto_life_area,
+            assigned_life_area: areaVotes.area,
             vote_count: areaVotes.cnt,
           },
           affected_ids: [String(topic.id)],
