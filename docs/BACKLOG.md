@@ -32,7 +32,17 @@ Deno-based Telegram bot using grammY. Captures text messages as thoughts, suppor
 
 ## Active / In-Progress
 
-_(none)_
+### OB-017: Gardening Agents
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-017 |
+| **Status** | in-progress |
+| **Priority** | critical |
+
+**Rationale:** Robin's brain has 140 unapproved topic suggestions creating a "(no topic)" bottleneck. The treemap visualization is hollow without organized topics. This unblocks the explore page, search quality, and overall usability. See full spec below in Proposed section.
+
+**Next up:** OB-018 (User-Configurable Life Areas + Onboarding) — needed before Tina starts using her brain instance.
 
 ---
 
@@ -423,3 +433,148 @@ Currently `ThoughtManager.capture()` awaits both embedding (Ollama) and classifi
 - Batch re-processing endpoints already exist (`processUnembedded`, `processUnclassified`) — ensure they're exposed via API
 
 **Trade-off:** Caller won't receive classification in the immediate response. For MCP use (via `capture_thought`), this is acceptable since the tool output is informational.
+
+---
+
+### OB-014: Backup Health Indicator
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-014 |
+| **Status** | proposed |
+| **Priority** | high |
+| **Added** | Mar 22, 2026 |
+
+Visible backup health stoplight in the PWA header, powered by a new health endpoint.
+
+**Scope:**
+- `GET /health/backup` endpoint — checks Litestream replication status and/or S3 object last-modified timestamp
+- Returns: `{ status: "healthy" | "lagging" | "failing", last_replication: ISO timestamp, size_bytes: number }`
+- Stoplight indicator in header of all pages (chat, browse, explore): green (< 5min), yellow (5-30min), red (30min+ or not running)
+- Hover/tap tooltip shows last backup time and DB size
+- Graceful when `ENABLE_LITESTREAM=false` — show gray dot with "backups disabled"
+
+**Applies to:** All brain types (OB, BoB, BoW)
+
+---
+
+### OB-015: Backup Restore Verification
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-015 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Mar 22, 2026 |
+| **Depends on** | OB-014 |
+
+Periodic and on-demand restore testing to verify backups are actually recoverable.
+
+**Scope:**
+- `POST /admin/backup/test-restore` endpoint (admin-only)
+- Pulls latest backup from S3 to temp location
+- Opens as separate SQLite connection (never touches live DB)
+- Runs validation: row counts, latest thought exists, schema version matches, `PRAGMA integrity_check`
+- Returns pass/fail with details (row count comparison, schema version, integrity result)
+- Results logged (system health log or dedicated table)
+- Triggerable from UI (button on setup/admin page) or MCP tool
+- Scheduled option: gardening agent runs weekly, alerts on failure
+
+**Future (Cerulean ops):**
+- Multi-instance dashboard showing backup and restore test status for all managed brains
+- Alerting on failures (email, Slack, Telegram)
+
+**Applies to:** All brain types (OB, BoB, BoW)
+
+---
+
+### OB-016: Summary-First URL Ingestion
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-016 |
+| **Status** | proposed |
+| **Priority** | high |
+| **Added** | Mar 22, 2026 |
+
+When ingesting a URL, store an AI-generated summary as the thought's primary text instead of the raw scraped content.
+
+**Current behavior:** Full page content stored as `text`, chunked and embedded verbatim. Results in walls of scraped text with nav elements and boilerplate in search results.
+
+**Proposed behavior:**
+1. Fetch full page content (same as now)
+2. Generate AI summary: 3-5 key takeaways, why it matters, lessons/implications
+3. Store summary as the thought's `text` — what appears in search, browse, treemap
+4. Archive full text in `metadata.full_text` or cold storage (S3) — retrievable if needed
+5. Embed the summary (not the raw article) — better search relevance
+6. Keep `source_url` — original always one click away
+
+**Why:** Matches how human memory works. Users don't re-read articles — they want takeaways. Produces better search results, better embeddings, better context for LLM agents.
+
+**Applies to:** URL ingestion in all brain types. Document ingestion (OCR) already produces a structured extraction — similar principle.
+
+---
+
+### OB-017: Gardening Agents
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-017 |
+| **Status** | proposed |
+| **Priority** | high |
+| **Added** | Mar 22, 2026 |
+
+Background agents that autonomously maintain data quality: topic management, consolidation, and backup verification.
+
+**Sub-agents:**
+
+**Topic gardener:**
+- Auto-approve topic suggestions appearing 3+ times with consistent naming
+- Auto-merge duplicate/near-duplicate topics (cosine similarity on names)
+- Auto-assign life/business areas to topics based on constituent thoughts
+- Weekly digest to user: "Added 5 topics, merged 2 duplicates"
+
+**Consolidation gardener:**
+- Identify old, unaccessed, large-text thoughts (especially ingested content)
+- Generate condensed summary, archive original to cold storage
+- Replace text and re-embed with summary
+- Never consolidate recently accessed, starred, or user-marked-important thoughts
+- Reversible — user can expand to retrieve original
+
+**Different rules per brain type:**
+- OB: relaxed — auto-approve, auto-merge, surface summary
+- BoB: cautious — propose changes, owner approves structural changes, all actions logged
+- BoW: TBD — likely similar to OB with publication-awareness
+
+**Implementation options:** Scheduled Deno task (cron), background worker, or MCP tool triggered on schedule. TBD.
+
+**Depends on:** OB-003 (topic normalization), OB-016 (summary-first ingestion for consolidation model)
+
+---
+
+### OB-018: User-Configurable Life Areas with Onboarding
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-018 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Mar 22, 2026 |
+
+Replace hardcoded life area enum with user-configurable areas seeded by rational defaults and an optional onboarding interview.
+
+**Current state:** 9 hardcoded life areas in `LifeAreaSchema` (craft, business, systems, health, marriage, relationships, creative, wild, meta). These are Robin-specific and don't generalize.
+
+**Proposed OB defaults:** work, business, technology, health, family, people, creative, aspirations, growth
+
+**Proposed BoB defaults:** operations, sales, customers, team, finance, legal, products, vendors
+
+**Onboarding interview:** 5-6 questions on first use ("What do you do for work? What matters outside work? What are you trying to improve?"). Map answers to areas, let user rename/add/remove. System picks defaults, user tweaks.
+
+**Scope:**
+- Move life areas from schema enum to a user-configurable table (or preference/config artifact)
+- Seed with defaults on first use
+- UI for managing areas (add, rename, reorder, archive)
+- Onboarding flow in PWA (optional, skippable)
+- Migration: map existing hardcoded areas to the new configurable set
+- Classifier updated to use the user's configured areas instead of the enum
