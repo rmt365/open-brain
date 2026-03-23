@@ -88,21 +88,30 @@ class BackupIndicator extends LitElement {
     this._dbSizeBytes = null;
     this._enabled = false;
     this._showTooltip = false;
-    this._intervalId = null;
+    this._pollId = null;
+    this._tickId = null;
   }
 
   connectedCallback() {
     super.connectedCallback();
     this._fetchHealth();
-    this._intervalId = setInterval(() => this._fetchHealth(), 60000);
+    this._pollId = setInterval(() => this._fetchHealth(), 60000);
+    this._tickId = setInterval(() => this._tick(), 1000);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (this._intervalId) {
-      clearInterval(this._intervalId);
-      this._intervalId = null;
-    }
+    if (this._pollId) { clearInterval(this._pollId); this._pollId = null; }
+    if (this._tickId) { clearInterval(this._tickId); this._tickId = null; }
+  }
+
+  _tick() {
+    if (!this._enabled || this._lagSeconds < 0) return;
+    this._lagSeconds += 1;
+    // Update status color based on ticking lag
+    if (this._lagSeconds < 300) this._status = 'healthy';
+    else if (this._lagSeconds < 1800) this._status = 'warning';
+    else this._status = 'error';
   }
 
   async _fetchHealth() {
