@@ -42,6 +42,7 @@ class OpenBrainBrowse extends LitElement {
     _hasMore: { type: Boolean, state: true },
     _lightboxSrc: { type: String, state: true },
     _lifeAreas: { type: Array, state: true },
+    _online: { type: Boolean, state: true },
   };
 
   static styles = css`
@@ -86,6 +87,22 @@ class OpenBrainBrowse extends LitElement {
     }
     .header-nav-link:hover {
       background: rgba(255,255,255,0.1);
+    }
+    .header-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+    .status-dot.offline {
+      background: #ef4444;
       color: var(--text-primary);
     }
 
@@ -359,6 +376,7 @@ class OpenBrainBrowse extends LitElement {
     this._editingField = null;
     this._offset = 0;
     this._hasMore = true;
+    this._online = navigator.onLine;
     this._lightboxSrc = null;
     this._lifeAreas = [];
   }
@@ -367,6 +385,16 @@ class OpenBrainBrowse extends LitElement {
     super.connectedCallback();
     this._loadLifeAreas();
     this._loadThoughts();
+    this._onOnline = () => { this._online = true; };
+    this._onOffline = () => { this._online = false; };
+    window.addEventListener('online', this._onOnline);
+    window.addEventListener('offline', this._onOffline);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener('online', this._onOnline);
+    window.removeEventListener('offline', this._onOffline);
   }
 
   async _loadLifeAreas() {
@@ -561,6 +589,10 @@ class OpenBrainBrowse extends LitElement {
         <a href="${BASE_PATH}/ui/brain" class="header-nav-link" title="Capture thoughts">&#128172;</a>
         <a href="${BASE_PATH}/ui/explore" class="header-nav-link" title="Explore brain">&#127758;</a>
         <backup-indicator></backup-indicator>
+        <div class="header-status">
+          <div class="status-dot ${this._online ? '' : 'offline'}"></div>
+          ${this._online ? 'Online' : 'Offline'}
+        </div>
       </div>
 
       <div class="controls">

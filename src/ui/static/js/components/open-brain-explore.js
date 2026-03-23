@@ -34,6 +34,7 @@ class OpenBrainExplore extends LitElement {
     _triageLoading: { type: Boolean, state: true },
     _lifeAreas: { type: Array, state: true },
     _areaColors: { type: Object, state: true },
+    _online: { type: Boolean, state: true },
   };
 
   static styles = css`
@@ -80,6 +81,23 @@ class OpenBrainExplore extends LitElement {
       padding: 4px;
     }
     .header-nav-link:hover { opacity: 1; }
+
+    .header-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+    .status-dot.offline {
+      background: #ef4444;
+    }
 
     .breadcrumb {
       display: flex;
@@ -349,6 +367,7 @@ class OpenBrainExplore extends LitElement {
     this._triageLoading = false;
     this._lifeAreas = [];
     this._areaColors = { unclassified: DEFAULT_UNCLASSIFIED_COLOR };
+    this._online = navigator.onLine;
   }
 
   connectedCallback() {
@@ -357,11 +376,17 @@ class OpenBrainExplore extends LitElement {
     this._loadBreakdown();
     this._loadSuggestions();
     window.addEventListener('popstate', this._handlePopState);
+    this._onOnline = () => { this._online = true; };
+    this._onOffline = () => { this._online = false; };
+    window.addEventListener('online', this._onOnline);
+    window.addEventListener('offline', this._onOffline);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('popstate', this._handlePopState);
+    window.removeEventListener('online', this._onOnline);
+    window.removeEventListener('offline', this._onOffline);
   }
 
   _handlePopState = () => {
@@ -784,6 +809,10 @@ class OpenBrainExplore extends LitElement {
         <a href="${BASE_PATH}/ui/brain" class="header-nav-link" title="Capture thoughts">💬</a>
         <a href="${BASE_PATH}/ui/browse" class="header-nav-link" title="Browse thoughts">📚</a>
         <backup-indicator></backup-indicator>
+        <div class="header-status">
+          <div class="status-dot ${this._online ? '' : 'offline'}"></div>
+          ${this._online ? 'Online' : 'Offline'}
+        </div>
       </div>
 
       ${this._renderBreadcrumb()}
