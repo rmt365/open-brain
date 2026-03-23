@@ -270,6 +270,24 @@ For the operator managing multiple brains/BoB/BoW instances:
 - Alerting on failures (email, Slack, Telegram)
 - This is a separate ops UI from the personal brain pages
 
+## Priority-based preference loading
+
+Not all preferences and config artifacts are equally important. A priority system controls when items are injected into LLM context:
+
+| Priority | Name | When loaded | Default for |
+|----------|------|-------------|-------------|
+| P1 | Always | Every LLM context, every tool response | New preferences (rules) |
+| P2 | Relevant | When domain/topic matches the current context | New config artifacts |
+| P3 | On-demand | Never auto-injected, only via search/browse | Archived/reference items |
+
+**Assembly behavior:**
+- No filter: P1 + P2 (backward compatible)
+- Domain-filtered: P1 + P2 matching domain
+- Tight context: P1 only (~500 tokens vs ~2000 for everything)
+- P3 items are searchable but never injected
+
+**Gardener role:** Suggest demoting unused preferences ("This hasn't influenced output in 90 days — move to P3?")
+
 ## Design principles (all brains)
 
 1. **Minimal cognitive load** — the system is opinionated with rational defaults. Users can adjust but shouldn't have to.

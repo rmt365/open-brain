@@ -578,3 +578,33 @@ Replace hardcoded life area enum with user-configurable areas seeded by rational
 - Onboarding flow in PWA (optional, skippable)
 - Migration: map existing hardcoded areas to the new configurable set
 - Classifier updated to use the user's configured areas instead of the enum
+
+---
+
+### OB-019: Priority-Based Preference Loading
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-019 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Mar 23, 2026 |
+
+Add a priority field to preferences and config artifacts that controls when they're injected into LLM context. Inspired by the "Memory Dashboard" pattern of grouping memories by load priority.
+
+**Priority levels:**
+- **P1 (Always):** Injected into every LLM context. Hard guardrails, communication style, core rules. Default for new preferences.
+- **P2 (Relevant):** Injected when domain/topic matches. Project configs, domain-specific rules. Default for new config artifacts.
+- **P3 (On-demand):** Available via search/browse only, never auto-injected. Reference material, archived guidelines.
+
+**Scope:**
+- Add `priority` column to `preferences` and `config_artifacts` tables
+- Update `assemblePreferencesBlock()` to filter by priority (P1 always, P2 when domain matches, P3 never)
+- Update context injector in MCP to respect priority levels
+- UI: group preferences by priority level with section headers ("Always Active", "When Relevant", "Reference Only")
+- MCP tools: add optional `priority` param to capture/config actions
+- Gardener enhancement: suggest demoting unused preferences to P3
+
+**Impact:** Reduces context window noise from ~2000 tokens (everything) to ~500 tokens (P1 only) for typical tool responses. Improves LLM output quality.
+
+**Design doc:** `.claude/plans/radiant-skipping-rabbit.md` (full design with schema, assembly logic, UI mockups)
