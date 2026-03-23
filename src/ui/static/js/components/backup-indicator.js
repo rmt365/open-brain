@@ -30,8 +30,8 @@ class BackupIndicator extends LitElement {
     .backup-badge {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
+      gap: 5px;
+      padding: 3px 8px;
       border-radius: 10px;
       cursor: pointer;
       font-size: 11px;
@@ -42,13 +42,9 @@ class BackupIndicator extends LitElement {
       background: rgba(255, 255, 255, 0.08);
     }
 
-    .backup-badge .icon {
-      font-size: 12px;
-    }
-
     .backup-badge .dot {
-      width: 6px;
-      height: 6px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       flex-shrink: 0;
     }
@@ -60,7 +56,12 @@ class BackupIndicator extends LitElement {
 
     .backup-badge .label {
       color: #64748b;
+      white-space: nowrap;
     }
+
+    .backup-badge.healthy .label { color: #86efac; }
+    .backup-badge.warning .label { color: #fcd34d; }
+    .backup-badge.error .label { color: #fca5a5; }
 
     .tooltip {
       position: absolute;
@@ -141,17 +142,25 @@ class BackupIndicator extends LitElement {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  _statusLabel() {
+    if (!this._enabled) return 'Backup off';
+    if (this._status === 'healthy') return `Backup ${this._formatLag(this._lagSeconds)}`;
+    if (this._status === 'warning') return `Backup ${this._formatLag(this._lagSeconds)}`;
+    if (this._status === 'error') return 'Backup stale';
+    return 'Backup';
+  }
+
   render() {
     return html`
-      <div class="backup-badge ${this._status}" @click=${this._toggleTooltip} title="Backup status">
-        <span class="icon">&#128451;</span>
+      <div class="backup-badge ${this._status}" @click=${this._toggleTooltip}>
         <span class="dot"></span>
+        <span class="label">${this._statusLabel()}</span>
       </div>
       ${this._showTooltip ? html`
         <div class="tooltip">
           ${!this._enabled
             ? 'Backups disabled'
-            : html`Last backup: ${this._formatLag(this._lagSeconds)}<br>Size: ${this._formatSize(this._dbSizeBytes)}`
+            : html`Last: ${this._formatLag(this._lagSeconds)}<br>Size: ${this._formatSize(this._dbSizeBytes)}<br>Status: ${this._status}`
           }
         </div>
       ` : ''}
