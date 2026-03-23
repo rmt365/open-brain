@@ -1,5 +1,5 @@
 // Open Brain - Preference Routes
-// HTTP routes for taste preference CRUD, block assembly, and natural language extraction
+// HTTP routes for taste preference (rule) CRUD, block assembly, and natural language extraction
 
 import { Hono } from "@hono/hono";
 import { validateJson } from "@p2b/hono-core";
@@ -13,10 +13,9 @@ import {
 } from "../schemas/schemas.ts";
 import type { OpenBrainDatabaseManager } from "../db/openBrainDatabaseManager.ts";
 import type {
-  TastePreference,
+  Preference,
   ApiResponse,
   ConstraintType,
-  ArtifactType,
 } from "../types/index.ts";
 import type { LLMProvider } from "../logic/llm/types.ts";
 import { extractPreference } from "../logic/preferences.ts";
@@ -44,40 +43,6 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
       return c.json<ApiResponse<Array<{ domain: string; count: number }>>>({
         success: true,
         data: domains,
-      });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return c.json<ApiResponse>({ success: false, error: msg }, 500);
-    }
-  });
-
-  /** GET /preferences/by-purpose — Find blocks with matching purpose across domains */
-  router.get("/by-purpose", (c) => {
-    try {
-      const purpose = c.req.query("purpose");
-      if (!purpose) {
-        return c.json<ApiResponse>({ success: false, error: "purpose query param required" }, 400);
-      }
-      const domainsParam = c.req.query("domains");
-      const domains = domainsParam ? domainsParam.split(",").map((d) => d.trim()) : undefined;
-      const results = db.findByPurpose(purpose, domains);
-      return c.json<ApiResponse<TastePreference[]>>({
-        success: true,
-        data: results,
-      });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return c.json<ApiResponse>({ success: false, error: msg }, 500);
-    }
-  });
-
-  /** GET /preferences/profiles — List config profiles (domains with config artifacts) */
-  router.get("/profiles", (c) => {
-    try {
-      const profiles = db.listConfigProfiles();
-      return c.json<ApiResponse>({
-        success: true,
-        data: profiles,
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -119,7 +84,7 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
 
       // Save the extracted preference
       const preference = db.createPreference(extracted);
-      return c.json<ApiResponse<TastePreference>>({
+      return c.json<ApiResponse<Preference>>({
         success: true,
         data: preference,
         message: "Preference extracted and saved",
@@ -134,12 +99,12 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
   // COLLECTION ROUTES
   // ============================================================
 
-  /** POST /preferences — Create a new preference */
+  /** POST /preferences — Create a new preference (rule) */
   router.post("/", validateJson(CreatePreferenceSchema), (c) => {
     try {
       const data = c.req.valid("json" as never) as CreatePreferenceInput;
       const preference = db.createPreference(data);
-      return c.json<ApiResponse<TastePreference>>({
+      return c.json<ApiResponse<Preference>>({
         success: true,
         data: preference,
         message: "Preference created",
@@ -155,35 +120,10 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
     try {
       const domain = c.req.query("domain");
       const constraintType = c.req.query("constraint_type") as ConstraintType | undefined;
-      const artifactType = c.req.query("artifact_type") as ArtifactType | undefined;
-      const preferences = db.listPreferences(domain, constraintType, artifactType);
-      return c.json<ApiResponse<TastePreference[]>>({
+      const preferences = db.listPreferences(domain, constraintType);
+      return c.json<ApiResponse<Preference[]>>({
         success: true,
         data: preferences,
-      });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      return c.json<ApiResponse>({ success: false, error: msg }, 500);
-    }
-  });
-
-  /** PUT /preferences/upsert — Upsert a config artifact by domain + name */
-  router.put("/upsert", validateJson(CreatePreferenceSchema), (c) => {
-    try {
-      const data = c.req.valid("json" as never) as CreatePreferenceInput;
-      if (!data.artifact_type) {
-        return c.json<ApiResponse>({ success: false, error: "artifact_type is required for upsert" }, 400);
-      }
-      const preference = db.upsertConfigArtifact(data.domain, data.preference_name, {
-        content: data.content || "",
-        artifact_type: data.artifact_type,
-        purpose: data.purpose,
-        constraint_type: data.constraint_type,
-      });
-      return c.json<ApiResponse<TastePreference>>({
-        success: true,
-        data: preference,
-        message: "Config artifact upserted",
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -203,7 +143,7 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
       if (!preference) {
         return c.json<ApiResponse>({ success: false, error: "Preference not found" }, 404);
       }
-      return c.json<ApiResponse<TastePreference>>({
+      return c.json<ApiResponse<Preference>>({
         success: true,
         data: preference,
       });
@@ -222,7 +162,7 @@ export function createPreferenceRoutes(db: OpenBrainDatabaseManager, llmConfig?:
       if (!preference) {
         return c.json<ApiResponse>({ success: false, error: "Preference not found" }, 404);
       }
-      return c.json<ApiResponse<TastePreference>>({
+      return c.json<ApiResponse<Preference>>({
         success: true,
         data: preference,
         message: "Preference updated",

@@ -24,6 +24,7 @@ class OpenBrainChat extends LitElement {
     _needsApiKey: { type: Boolean, state: true },
     _showPreferences: { type: Boolean, state: true },
     _preferences: { type: Array, state: true },
+    _configArtifacts: { type: Array, state: true },
     _prefLoading: { type: Boolean, state: true },
     _prefEditing: { type: String, state: true },
     _prefFormData: { type: Object, state: true },
@@ -919,6 +920,7 @@ class OpenBrainChat extends LitElement {
     this._showApiKeyDialog = false;
     this._showPreferences = false;
     this._preferences = [];
+    this._configArtifacts = [];
     this._prefLoading = false;
     this._prefEditing = null;
     this._showSettings = false;
@@ -1483,13 +1485,20 @@ class OpenBrainChat extends LitElement {
   async _loadPreferences() {
     this._prefLoading = true;
     try {
-      const resp = await fetch(`${BASE_PATH}/preferences`, {
-        headers: this._getHeaders(),
-      });
-      if (resp.ok) {
-        const result = await resp.json();
+      const [prefResp, configResp] = await Promise.all([
+        fetch(`${BASE_PATH}/preferences`, { headers: this._getHeaders() }),
+        fetch(`${BASE_PATH}/config`, { headers: this._getHeaders() }),
+      ]);
+      if (prefResp.ok) {
+        const result = await prefResp.json();
         if (result.success) {
           this._preferences = result.data || [];
+        }
+      }
+      if (configResp.ok) {
+        const result = await configResp.json();
+        if (result.success) {
+          this._configArtifacts = result.data || [];
         }
       }
     } catch {
@@ -1522,19 +1531,33 @@ class OpenBrainChat extends LitElement {
     };
   }
 
-  _openEditPrefForm(pref) {
+  _openEditPrefForm(pref, isArtifact = false) {
     this._prefEditing = pref.id;
-    this._prefFormData = {
-      format: pref.format || 'rule',
-      preference_name: pref.preference_name,
-      domain: pref.domain,
-      reject: pref.reject || '',
-      want: pref.want || '',
-      content: pref.content || '',
-      constraint_type: pref.constraint_type,
-      artifact_type: pref.artifact_type || '',
-      purpose: pref.purpose || '',
-    };
+    if (isArtifact) {
+      this._prefFormData = {
+        format: 'block',
+        preference_name: pref.name,
+        domain: pref.domain,
+        reject: '',
+        want: '',
+        content: pref.content || '',
+        constraint_type: pref.constraint_type,
+        artifact_type: pref.artifact_type || '',
+        purpose: pref.purpose || '',
+      };
+    } else {
+      this._prefFormData = {
+        format: 'rule',
+        preference_name: pref.preference_name,
+        domain: pref.domain,
+        reject: pref.reject || '',
+        want: pref.want || '',
+        content: '',
+        constraint_type: pref.constraint_type,
+        artifact_type: '',
+        purpose: '',
+      };
+    }
   }
 
   _cancelPrefForm() {
@@ -1545,40 +1568,72 @@ class OpenBrainChat extends LitElement {
   async _savePref() {
     if (!this._prefFormData) return;
     const data = this._prefFormData;
-    if (!data.preference_name) return;
-    if (data.format === 'block') {
-      if (!data.content) return;
-    } else {
-      if (!data.reject || !data.want) return;
-    }
+    const isBlock = data.format === 'block';
 
-    const payload = { ...data };
-    if (payload.format === 'rule') {
-      delete payload.content;
-      delete payload.artifact_type;
-      delete payload.purpose;
+    if (isBlock) {
+      if (!data.preference_name || !data.content) return;
     } else {
-      payload.reject = '';
-      payload.want = '';
+      if (!data.preference_name || !data.reject || !data.want) return;
     }
-    if (!payload.artifact_type) delete payload.artifact_type;
-    if (!payload.purpose) delete payload.purpose;
 
     try {
       if (this._prefEditing) {
-        // format is immutable — omit from PUT
-        const { format, ...updatePayload } = payload;
-        await fetch(`${BASE_PATH}/preferences/${this._prefEditing}`, {
-          method: 'PUT',
-          headers: this._getHeaders(),
-          body: JSON.stringify(updatePayload),
-        });
+        // Determine which endpoint based on format
+        if (isBlock) {
+          const payload = {};
+          if (data.preference_name) payload.name = data.preference_name;
+          if (data.domain) payload.domain = data.domain;
+          if (data.content) payload.content = data.content;
+          if (data.artifact_type) payload.artifact_type = data.artifact_type;
+          if (data.purpose) payload.purpose = data.purpose;
+          if (data.constraint_type) payload.constraint_type = data.constraint_type;
+          await fetch(`${BASE_PATH}/config/${this._prefEditing}`, {
+            method: 'PUT',
+            headers: this._getHeaders(),
+            body: JSON.stringify(payload),
+          });
+        } else {
+          const payload = {};
+          if (data.preference_name) payload.preference_name = data.preference_name;
+          if (data.domain) payload.domain = data.domain;
+          if (data.reject) payload.reject = data.reject;
+          if (data.want) payload.want = data.want;
+          if (data.constraint_type) payload.constraint_type = data.constraint_type;
+          await fetch(`${BASE_PATH}/preferences/${this._prefEditing}`, {
+            method: 'PUT',
+            headers: this._getHeaders(),
+            body: JSON.stringify(payload),
+          });
+        }
       } else {
-        await fetch(`${BASE_PATH}/preferences`, {
-          method: 'POST',
-          headers: this._getHeaders(),
-          body: JSON.stringify(payload),
-        });
+        if (isBlock) {
+          const payload = {
+            name: data.preference_name,
+            domain: data.domain || 'general',
+            content: data.content,
+            artifact_type: data.artifact_type || 'settings',
+            constraint_type: data.constraint_type || 'domain rule',
+          };
+          if (data.purpose) payload.purpose = data.purpose;
+          await fetch(`${BASE_PATH}/config`, {
+            method: 'POST',
+            headers: this._getHeaders(),
+            body: JSON.stringify(payload),
+          });
+        } else {
+          const payload = {
+            preference_name: data.preference_name,
+            domain: data.domain || 'general',
+            reject: data.reject,
+            want: data.want,
+            constraint_type: data.constraint_type || 'quality standard',
+          };
+          await fetch(`${BASE_PATH}/preferences`, {
+            method: 'POST',
+            headers: this._getHeaders(),
+            body: JSON.stringify(payload),
+          });
+        }
       }
       this._prefFormData = null;
       this._prefEditing = null;
@@ -1588,10 +1643,11 @@ class OpenBrainChat extends LitElement {
     }
   }
 
-  async _deletePref(id) {
+  async _deletePref(id, isArtifact = false) {
     if (!confirm('Delete this preference?')) return;
     try {
-      await fetch(`${BASE_PATH}/preferences/${id}`, {
+      const endpoint = isArtifact ? `${BASE_PATH}/config/${id}` : `${BASE_PATH}/preferences/${id}`;
+      await fetch(endpoint, {
         method: 'DELETE',
         headers: this._getHeaders(),
       });
@@ -1632,24 +1688,34 @@ class OpenBrainChat extends LitElement {
   }
 
   _renderPreferencesPanel() {
-    // Group preferences by domain
-    const grouped = {};
+    // Group preferences (rules) by domain
+    const ruleGrouped = {};
     for (const p of this._preferences) {
-      if (!grouped[p.domain]) grouped[p.domain] = [];
-      grouped[p.domain].push(p);
+      if (!ruleGrouped[p.domain]) ruleGrouped[p.domain] = [];
+      ruleGrouped[p.domain].push(p);
     }
-    const domains = Object.keys(grouped).sort();
+    const ruleDomains = Object.keys(ruleGrouped).sort();
+
+    // Group config artifacts by domain
+    const artGrouped = {};
+    for (const a of this._configArtifacts) {
+      if (!artGrouped[a.domain]) artGrouped[a.domain] = [];
+      artGrouped[a.domain].push(a);
+    }
+    const artDomains = Object.keys(artGrouped).sort();
+
+    const totalItems = this._preferences.length + this._configArtifacts.length;
 
     return html`
       <div class="pref-overlay">
         <div class="pref-header">
-          <h2>Taste Preferences</h2>
+          <h2>Preferences & Config</h2>
           <button class="pref-back-btn" @click=${() => { this._showPreferences = false; }}>Done</button>
         </div>
         <div class="pref-body">
           <div class="pref-actions">
-            <button class="pref-add-btn" @click=${this._openAddPrefForm}>+ Add Preference</button>
-            ${this._preferences.length > 0 ? html`
+            <button class="pref-add-btn" @click=${this._openAddPrefForm}>+ Add</button>
+            ${totalItems > 0 ? html`
               <button class="pref-copy-btn" @click=${this._copyPrefBlock}>Copy Block</button>
             ` : ''}
           </div>
@@ -1658,42 +1724,64 @@ class OpenBrainChat extends LitElement {
 
           ${this._prefLoading ? html`
             <div class="pref-empty">Loading...</div>
-          ` : domains.length === 0 && !this._prefFormData ? html`
+          ` : totalItems === 0 && !this._prefFormData ? html`
             <div class="pref-empty">
               No preferences yet. Add your first one to start building your taste profile.
             </div>
-          ` : domains.map((domain) => html`
-            <div class="pref-domain-group">
-              <div class="pref-domain-label">${domain}</div>
-              ${grouped[domain].map((p) =>
-                this._prefEditing === p.id ? this._renderPrefForm() : html`
-                  <div class="pref-card ${p.format === 'block' ? 'pref-card--block' : ''}">
-                    <div class="pref-card-header">
-                      <span class="pref-card-name">${p.preference_name}</span>
-                      ${p.artifact_type ? html`
-                        <span class="pref-card-badge pref-card-badge--artifact">${p.artifact_type}</span>
-                      ` : ''}
-                      <span class="pref-card-badge">${p.constraint_type}</span>
-                    </div>
-                    ${p.format === 'block' ? html`
-                      <div class="pref-card-content-preview">${this._truncateContent(p.content, 3)}</div>
-                    ` : html`
-                      <div class="pref-card-field">
-                        <strong>Reject: </strong><span>${p.reject}</span>
+          ` : html`
+            ${ruleDomains.length > 0 ? html`
+              <div class="pref-domain-label" style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px;">Preferences</div>
+              ${ruleDomains.map((domain) => html`
+                <div class="pref-domain-group">
+                  <div class="pref-domain-label">${domain}</div>
+                  ${ruleGrouped[domain].map((p) =>
+                    this._prefEditing === p.id ? this._renderPrefForm() : html`
+                      <div class="pref-card">
+                        <div class="pref-card-header">
+                          <span class="pref-card-name">${p.preference_name}</span>
+                          <span class="pref-card-badge">${p.constraint_type}</span>
+                        </div>
+                        <div class="pref-card-field">
+                          <strong>Reject: </strong><span>${p.reject}</span>
+                        </div>
+                        <div class="pref-card-field">
+                          <strong>Want: </strong><span>${p.want}</span>
+                        </div>
+                        <div class="pref-card-actions">
+                          <button class="pref-edit-btn" @click=${() => this._openEditPrefForm(p, false)}>Edit</button>
+                          <button class="pref-delete-btn" @click=${() => this._deletePref(p.id, false)}>Delete</button>
+                        </div>
                       </div>
-                      <div class="pref-card-field">
-                        <strong>Want: </strong><span>${p.want}</span>
+                    `
+                  )}
+                </div>
+              `)}
+            ` : ''}
+            ${artDomains.length > 0 ? html`
+              <div class="pref-domain-label" style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 16px;">Config Artifacts</div>
+              ${artDomains.map((domain) => html`
+                <div class="pref-domain-group">
+                  <div class="pref-domain-label">${domain}</div>
+                  ${artGrouped[domain].map((a) =>
+                    this._prefEditing === a.id ? this._renderPrefForm() : html`
+                      <div class="pref-card pref-card--block">
+                        <div class="pref-card-header">
+                          <span class="pref-card-name">${a.name}</span>
+                          <span class="pref-card-badge pref-card-badge--artifact">${a.artifact_type}</span>
+                          <span class="pref-card-badge">${a.constraint_type}</span>
+                        </div>
+                        <div class="pref-card-content-preview">${this._truncateContent(a.content, 3)}</div>
+                        <div class="pref-card-actions">
+                          <button class="pref-edit-btn" @click=${() => this._openEditPrefForm(a, true)}>Edit</button>
+                          <button class="pref-delete-btn" @click=${() => this._deletePref(a.id, true)}>Delete</button>
+                        </div>
                       </div>
-                    `}
-                    <div class="pref-card-actions">
-                      <button class="pref-edit-btn" @click=${() => this._openEditPrefForm(p)}>Edit</button>
-                      <button class="pref-delete-btn" @click=${() => this._deletePref(p.id)}>Delete</button>
-                    </div>
-                  </div>
-                `
-              )}
-            </div>
-          `)}
+                    `
+                  )}
+                </div>
+              `)}
+            ` : ''}
+          `}
         </div>
       </div>
     `;

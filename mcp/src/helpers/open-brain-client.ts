@@ -161,32 +161,28 @@ export async function getPreferencesBlock(
 }
 
 // ============================================================
-// PREFERENCES
+// PREFERENCES (rules)
 // ============================================================
 
-interface TastePreference {
+interface Preference {
   id: string;
   preference_name: string;
   domain: string;
   reject: string;
   want: string;
-  format: string;
-  content: string | null;
   constraint_type: string;
-  artifact_type: string | null;
-  purpose: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export async function listPreferences(
   domain?: string,
-): Promise<ApiResponse<TastePreference[]>> {
+): Promise<ApiResponse<Preference[]>> {
   const searchParams = new URLSearchParams();
   if (domain) searchParams.set("domain", domain);
 
   const qs = searchParams.toString();
-  return request<ApiResponse<TastePreference[]>>(`/preferences${qs ? `?${qs}` : ""}`);
+  return request<ApiResponse<Preference[]>>(`/preferences${qs ? `?${qs}` : ""}`);
 }
 
 export async function createPreference(data: {
@@ -195,30 +191,11 @@ export async function createPreference(data: {
   reject: string;
   want: string;
   constraint_type?: string;
-}): Promise<ApiResponse<TastePreference>> {
-  return request<ApiResponse<TastePreference>>("/preferences", {
+}): Promise<ApiResponse<Preference>> {
+  return request<ApiResponse<Preference>>("/preferences", {
     method: "POST",
     body: JSON.stringify(data),
   });
-}
-
-export async function createBlock(data: {
-  preference_name: string;
-  domain?: string;
-  content: string;
-  constraint_type?: string;
-}): Promise<ApiResponse<TastePreference>> {
-  return request<ApiResponse<TastePreference>>("/preferences", {
-    method: "POST",
-    body: JSON.stringify({
-      ...data,
-      format: "block",
-    }),
-  });
-}
-
-export async function listDomains(): Promise<ApiResponse<Array<{ domain: string; count: number }>>> {
-  return request<ApiResponse<Array<{ domain: string; count: number }>>>("/preferences/domains");
 }
 
 export async function deletePreference(id: string | number): Promise<ApiResponse<unknown>> {
@@ -227,34 +204,91 @@ export async function deletePreference(id: string | number): Promise<ApiResponse
   });
 }
 
+export async function listDomains(): Promise<ApiResponse<Array<{ domain: string; count: number }>>> {
+  return request<ApiResponse<Array<{ domain: string; count: number }>>>("/preferences/domains");
+}
+
 // ============================================================
-// CONFIG ARTIFACTS
+// CONFIG ARTIFACTS (blocks)
 // ============================================================
 
+interface ConfigArtifact {
+  id: string;
+  name: string;
+  domain: string;
+  content: string;
+  artifact_type: string;
+  purpose: string | null;
+  constraint_type: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createBlock(data: {
+  name: string;
+  domain?: string;
+  content: string;
+  artifact_type?: string;
+  constraint_type?: string;
+}): Promise<ApiResponse<ConfigArtifact>> {
+  return request<ApiResponse<ConfigArtifact>>("/config", {
+    method: "POST",
+    body: JSON.stringify({
+      ...data,
+      artifact_type: data.artifact_type || "settings",
+    }),
+  });
+}
+
+export async function listConfigArtifacts(
+  domain?: string,
+  artifactType?: string,
+): Promise<ApiResponse<ConfigArtifact[]>> {
+  const searchParams = new URLSearchParams();
+  if (domain) searchParams.set("domain", domain);
+  if (artifactType) searchParams.set("artifact_type", artifactType);
+  return request<ApiResponse<ConfigArtifact[]>>(`/config?${searchParams.toString()}`);
+}
+
+export async function getConfigArtifact(id: string): Promise<ApiResponse<ConfigArtifact>> {
+  return request<ApiResponse<ConfigArtifact>>(`/config/${id}`);
+}
+
+export async function updateConfigArtifact(
+  id: string,
+  data: Record<string, unknown>,
+): Promise<ApiResponse<ConfigArtifact>> {
+  return request<ApiResponse<ConfigArtifact>>(`/config/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteConfigArtifact(id: string | number): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>(`/config/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function upsertConfigArtifact(data: {
-  preference_name: string;
+  name: string;
   domain: string;
   content: string;
   artifact_type: string;
   purpose?: string;
   constraint_type?: string;
-}): Promise<ApiResponse<TastePreference>> {
-  return request<ApiResponse<TastePreference>>("/preferences/upsert", {
+}): Promise<ApiResponse<ConfigArtifact>> {
+  return request<ApiResponse<ConfigArtifact>>("/config/upsert", {
     method: "PUT",
-    body: JSON.stringify({
-      ...data,
-      format: "block",
-    }),
+    body: JSON.stringify(data),
   });
 }
 
 export async function listProfileArtifacts(
   domain: string,
   artifactType?: string,
-): Promise<ApiResponse<TastePreference[]>> {
-  const searchParams = new URLSearchParams({ domain });
-  if (artifactType) searchParams.set("artifact_type", artifactType);
-  return request<ApiResponse<TastePreference[]>>(`/preferences?${searchParams.toString()}`);
+): Promise<ApiResponse<ConfigArtifact[]>> {
+  return listConfigArtifacts(domain, artifactType);
 }
 
 interface ConfigProfile {
@@ -264,26 +298,16 @@ interface ConfigProfile {
 }
 
 export async function listConfigProfiles(): Promise<ApiResponse<ConfigProfile[]>> {
-  return request<ApiResponse<ConfigProfile[]>>("/preferences/profiles");
+  return request<ApiResponse<ConfigProfile[]>>("/config/profiles");
 }
 
 export async function findByPurpose(
   purpose: string,
   domains?: string[],
-): Promise<ApiResponse<TastePreference[]>> {
+): Promise<ApiResponse<ConfigArtifact[]>> {
   const searchParams = new URLSearchParams({ purpose });
   if (domains?.length) searchParams.set("domains", domains.join(","));
-  return request<ApiResponse<TastePreference[]>>(`/preferences/by-purpose?${searchParams.toString()}`);
-}
-
-export async function updatePreference(
-  id: string | number,
-  data: Record<string, unknown>,
-): Promise<ApiResponse<TastePreference>> {
-  return request<ApiResponse<TastePreference>>(`/preferences/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
+  return request<ApiResponse<ConfigArtifact[]>>(`/config/by-purpose?${searchParams.toString()}`);
 }
 
 // ============================================================
@@ -535,4 +559,4 @@ export async function gardenTopics(
   });
 }
 
-export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse, HouseholdItem, HouseholdVendor, GardenRunResult };
+export type { Thought, SearchResult, BrainStats, TopicEntry, ManagedTopic, SuggestedTopic, ApiResponse, ListResponse, HouseholdItem, HouseholdVendor, GardenRunResult, Preference, ConfigArtifact };

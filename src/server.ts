@@ -8,6 +8,7 @@ import type { ServiceConfig } from "./config.ts";
 import type { OpenBrainDatabaseManager } from "./db/openBrainDatabaseManager.ts";
 import { createThoughtRoutes } from "./routes/thoughts.ts";
 import { createPreferenceRoutes } from "./routes/preferences.ts";
+import { createConfigRoutes } from "./routes/config.ts";
 import { createTopicRoutes } from "./routes/topics.ts";
 import { createLifeAreaRoutes } from "./routes/life-areas.ts";
 import { createDocumentRoutes } from "./routes/documents.ts";
@@ -94,8 +95,11 @@ export class OpenBrainServer {
     // Document upload (image/PDF extraction via Claude vision)
     this.app.route("/documents", createDocumentRoutes(this.thoughtManager, this.config));
 
-    // Taste preference CRUD, block assembly, and extraction routes
+    // Preference (rule) CRUD, block assembly, and extraction routes
     this.app.route("/preferences", createPreferenceRoutes(this.dbManager, this.config.llm));
+
+    // Config artifact CRUD, upsert, profiles, and purpose search routes
+    this.app.route("/config", createConfigRoutes(this.dbManager));
 
     // UI routes (PWA chat interface)
     this.app.route("/ui", createUIRoutes(this.config.basePath));

@@ -3,10 +3,10 @@ import { CreateCompoundTool, textResult } from "../helpers/create-compound-tool.
 import {
   upsertConfigArtifact,
   listConfigProfiles,
-  listProfileArtifacts,
+  listConfigArtifacts,
   findByPurpose,
-  updatePreference,
-  deletePreference,
+  updateConfigArtifact,
+  deleteConfigArtifact,
 } from "../helpers/open-brain-client.js";
 
 const ARTIFACT_TYPES = [
@@ -33,7 +33,7 @@ Workflow:
       required: ["preference_name", "content", "domain", "artifact_type"],
       handler: async (args) => {
         const response = await upsertConfigArtifact({
-          preference_name: args.preference_name as string,
+          name: args.preference_name as string,
           domain: args.domain as string,
           content: args.content as string,
           artifact_type: args.artifact_type as string,
@@ -45,12 +45,12 @@ Workflow:
           return textResult(`Failed to store artifact: ${response.error || "Unknown error"}`, true);
         }
 
-        const p = response.data;
-        const preview = p.content ? p.content.substring(0, 100) + (p.content.length > 100 ? "..." : "") : "";
+        const a = response.data;
+        const preview = a.content ? a.content.substring(0, 100) + (a.content.length > 100 ? "..." : "") : "";
         return textResult(
-          `Config artifact stored: "${p.preference_name}" (${p.domain})\n` +
-          `  Type: ${p.artifact_type}\n` +
-          (p.purpose ? `  Purpose: ${p.purpose}\n` : "") +
+          `Config artifact stored: "${a.name}" (${a.domain})\n` +
+          `  Type: ${a.artifact_type}\n` +
+          (a.purpose ? `  Purpose: ${a.purpose}\n` : "") +
           `  ${preview}`,
         );
       },
@@ -84,7 +84,7 @@ Workflow:
       description: "Get all artifacts in a profile/domain. Requires: domain. Optional: artifact_type to filter.",
       required: ["domain"],
       handler: async (args) => {
-        const response = await listProfileArtifacts(
+        const response = await listConfigArtifacts(
           args.domain as string,
           args.artifact_type as string | undefined,
         );
@@ -93,7 +93,7 @@ Workflow:
           return textResult(`Failed to get profile: ${response.error || "Unknown error"}`, true);
         }
 
-        const artifacts = response.data.filter((a) => a.artifact_type !== null);
+        const artifacts = response.data;
         if (artifacts.length === 0) {
           return textResult(`No config artifacts found in domain "${args.domain}".`);
         }
@@ -101,7 +101,7 @@ Workflow:
         const lines = [`Profile "${args.domain}" — ${artifacts.length} artifacts:`, ""];
         for (const a of artifacts) {
           const preview = a.content ? a.content.substring(0, 80).replace(/\n/g, " ") + (a.content.length > 80 ? "..." : "") : "(empty)";
-          lines.push(`  [${a.artifact_type}] ${a.preference_name} (id: ${a.id})`);
+          lines.push(`  [${a.artifact_type}] ${a.name} (id: ${a.id})`);
           if (a.purpose) lines.push(`    Purpose: ${a.purpose}`);
           lines.push(`    ${preview}`);
           lines.push("");
@@ -123,13 +123,13 @@ Workflow:
         const allArtifacts: Array<{ domain: string; name: string; purpose: string; artifact_type: string; id: string }> = [];
 
         for (const domain of domainList) {
-          const response = await listProfileArtifacts(domain);
+          const response = await listConfigArtifacts(domain);
           if (response.success && response.data) {
             for (const a of response.data) {
-              if (a.artifact_type && a.purpose) {
+              if (a.purpose) {
                 allArtifacts.push({
                   domain,
-                  name: a.preference_name,
+                  name: a.name,
                   purpose: a.purpose,
                   artifact_type: a.artifact_type,
                   id: a.id,
@@ -184,18 +184,18 @@ Workflow:
         if (args.purpose !== undefined) data.purpose = args.purpose;
         if (args.domain !== undefined) data.domain = args.domain;
 
-        const response = await updatePreference(args.preference_id as string, data);
+        const response = await updateConfigArtifact(args.preference_id as string, data);
 
         if (!response.success || !response.data) {
           return textResult(`Failed to update artifact: ${response.error || "Not found"}`, true);
         }
 
-        const p = response.data;
+        const a = response.data;
         return textResult(
-          `Artifact updated: "${p.preference_name}" (${p.domain})\n` +
-          `  Type: ${p.artifact_type}\n` +
-          (p.purpose ? `  Purpose: ${p.purpose}\n` : "") +
-          `  Content updated (${p.content?.length || 0} chars)`,
+          `Artifact updated: "${a.name}" (${a.domain})\n` +
+          `  Type: ${a.artifact_type}\n` +
+          (a.purpose ? `  Purpose: ${a.purpose}\n` : "") +
+          `  Content updated (${a.content?.length || 0} chars)`,
         );
       },
     },
@@ -203,7 +203,7 @@ Workflow:
       description: "Delete a config artifact. Requires: preference_id.",
       required: ["preference_id"],
       handler: async (args) => {
-        const response = await deletePreference(args.preference_id as string);
+        const response = await deleteConfigArtifact(args.preference_id as string);
 
         if (!response.success) {
           return textResult(`Failed to remove artifact: ${response.error || "Not found"}`, true);

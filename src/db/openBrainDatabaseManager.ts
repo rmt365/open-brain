@@ -9,13 +9,13 @@ import type {
   LifeArea,
   LifeAreaConfig,
   ConstraintType,
-  PreferenceFormat,
   ArtifactType,
   BrainStats,
   CaptureThoughtRequest,
   UpdateThoughtRequest,
   ListThoughtsRequest,
-  TastePreference,
+  Preference,
+  ConfigArtifact,
   ManagedTopic,
   SuggestedTopic,
   SuggestionStatus,
@@ -1273,49 +1273,40 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   }
 
   // ============================================
-  // TASTE PREFERENCES
+  // PREFERENCES (rules)
   // ============================================
 
   createPreference(data: {
     preference_name: string;
     domain?: string;
-    reject?: string;
-    want?: string;
-    format?: PreferenceFormat;
-    content?: string;
+    reject: string;
+    want: string;
     constraint_type?: ConstraintType;
-    artifact_type?: ArtifactType;
-    purpose?: string;
-  }): TastePreference {
+  }): Preference {
     const id = crypto.randomUUID();
-    const format = data.format || "rule";
     this.db.prepare(`
-      INSERT INTO taste_preferences (id, preference_name, domain, reject, want, format, content, constraint_type, artifact_type, purpose)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO preferences (id, preference_name, domain, reject, want, constraint_type)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.preference_name,
       data.domain || "general",
-      data.reject || "",
-      data.want || "",
-      format,
-      format === "block" ? (data.content || null) : null,
+      data.reject,
+      data.want,
       data.constraint_type || "quality standard",
-      data.artifact_type || null,
-      data.purpose || null,
     );
     return this.getPreference(id)!;
   }
 
-  getPreference(id: string): TastePreference | null {
+  getPreference(id: string): Preference | null {
     const row = this.db.prepare(
-      "SELECT * FROM taste_preferences WHERE id = ?"
+      "SELECT * FROM preferences WHERE id = ?"
     ).get(id) as Record<string, unknown> | undefined;
     return row ? this.parsePreferenceRow(row) : null;
   }
 
-  listPreferences(domain?: string, constraintType?: ConstraintType, artifactType?: ArtifactType): TastePreference[] {
-    let query = "SELECT * FROM taste_preferences WHERE 1=1";
+  listPreferences(domain?: string, constraintType?: ConstraintType): Preference[] {
+    let query = "SELECT * FROM preferences WHERE 1=1";
     const params: string[] = [];
 
     if (domain) {
@@ -1325,10 +1316,6 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     if (constraintType) {
       query += " AND constraint_type = ?";
       params.push(constraintType);
-    }
-    if (artifactType) {
-      query += " AND artifact_type = ?";
-      params.push(artifactType);
     }
 
     query += " ORDER BY domain, constraint_type, preference_name";
@@ -1342,11 +1329,8 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     domain?: string;
     reject?: string;
     want?: string;
-    content?: string;
     constraint_type?: ConstraintType;
-    artifact_type?: ArtifactType;
-    purpose?: string;
-  }): TastePreference | null {
+  }): Preference | null {
     const existing = this.getPreference(id);
     if (!existing) return null;
 
@@ -1369,13 +1353,107 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       updates.push("want = ?");
       params.push(data.want);
     }
-    if (data.content !== undefined) {
-      updates.push("content = ?");
-      params.push(data.content);
-    }
     if (data.constraint_type !== undefined) {
       updates.push("constraint_type = ?");
       params.push(data.constraint_type);
+    }
+
+    if (updates.length === 0) return existing;
+
+    params.push(id);
+    this.db.prepare(
+      `UPDATE preferences SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run(...params);
+
+    return this.getPreference(id);
+  }
+
+  deletePreference(id: string): boolean {
+    const count = this.db.prepare(
+      "DELETE FROM preferences WHERE id = ?"
+    ).run(id);
+    return count > 0;
+  }
+
+  // ============================================
+  // CONFIG ARTIFACTS (blocks)
+  // ============================================
+
+  createConfigArtifact(data: {
+    name: string;
+    domain?: string;
+    content: string;
+    artifact_type: ArtifactType;
+    purpose?: string;
+    constraint_type?: ConstraintType;
+  }): ConfigArtifact {
+    const id = crypto.randomUUID();
+    this.db.prepare(`
+      INSERT INTO config_artifacts (id, name, domain, content, artifact_type, purpose, constraint_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      data.name,
+      data.domain || "general",
+      data.content,
+      data.artifact_type,
+      data.purpose || null,
+      data.constraint_type || "domain rule",
+    );
+    return this.getConfigArtifact(id)!;
+  }
+
+  getConfigArtifact(id: string): ConfigArtifact | null {
+    const row = this.db.prepare(
+      "SELECT * FROM config_artifacts WHERE id = ?"
+    ).get(id) as Record<string, unknown> | undefined;
+    return row ? this.parseConfigArtifactRow(row) : null;
+  }
+
+  listConfigArtifacts(domain?: string, artifactType?: ArtifactType): ConfigArtifact[] {
+    let query = "SELECT * FROM config_artifacts WHERE 1=1";
+    const params: string[] = [];
+
+    if (domain) {
+      query += " AND domain = ?";
+      params.push(domain);
+    }
+    if (artifactType) {
+      query += " AND artifact_type = ?";
+      params.push(artifactType);
+    }
+
+    query += " ORDER BY domain, artifact_type, name";
+
+    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseConfigArtifactRow(row));
+  }
+
+  updateConfigArtifact(id: string, data: {
+    name?: string;
+    domain?: string;
+    content?: string;
+    artifact_type?: ArtifactType;
+    purpose?: string;
+    constraint_type?: ConstraintType;
+  }): ConfigArtifact | null {
+    const existing = this.getConfigArtifact(id);
+    if (!existing) return null;
+
+    const updates: string[] = [];
+    const params: string[] = [];
+
+    if (data.name !== undefined) {
+      updates.push("name = ?");
+      params.push(data.name);
+    }
+    if (data.domain !== undefined) {
+      updates.push("domain = ?");
+      params.push(data.domain);
+    }
+    if (data.content !== undefined) {
+      updates.push("content = ?");
+      params.push(data.content);
     }
     if (data.artifact_type !== undefined) {
       updates.push("artifact_type = ?");
@@ -1385,67 +1463,26 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       updates.push("purpose = ?");
       params.push(data.purpose);
     }
+    if (data.constraint_type !== undefined) {
+      updates.push("constraint_type = ?");
+      params.push(data.constraint_type);
+    }
 
     if (updates.length === 0) return existing;
 
     params.push(id);
     this.db.prepare(
-      `UPDATE taste_preferences SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+      `UPDATE config_artifacts SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(...params);
 
-    return this.getPreference(id);
+    return this.getConfigArtifact(id);
   }
 
-  deletePreference(id: string): boolean {
+  deleteConfigArtifact(id: string): boolean {
     const count = this.db.prepare(
-      "DELETE FROM taste_preferences WHERE id = ?"
+      "DELETE FROM config_artifacts WHERE id = ?"
     ).run(id);
     return count > 0;
-  }
-
-  assemblePreferencesBlock(domain?: string): string {
-    let query = "SELECT * FROM taste_preferences";
-    const params: string[] = [];
-
-    if (domain) {
-      query += " WHERE domain = ?";
-      params.push(domain);
-    }
-
-    query += " ORDER BY domain, constraint_type, preference_name";
-
-    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
-    const prefs = rows.map((row) => this.parsePreferenceRow(row));
-
-    if (prefs.length === 0) return "";
-
-    return prefs.map((p) => {
-      if (p.format === "block" && p.content) {
-        return `**${p.preference_name}**\n${p.content}`;
-      }
-      return `**${p.preference_name}**\nReject: ${p.reject}\nWant: ${p.want}`;
-    }).join("\n\n");
-  }
-
-  listDomains(): Array<{ domain: string; count: number }> {
-    return this.db.prepare(
-      "SELECT domain, COUNT(*) as count FROM taste_preferences GROUP BY domain ORDER BY domain"
-    ).all() as Array<{ domain: string; count: number }>;
-  }
-
-  findByPurpose(purpose: string, domains?: string[]): TastePreference[] {
-    let query = "SELECT * FROM taste_preferences WHERE purpose = ?";
-    const params: string[] = [purpose];
-
-    if (domains && domains.length > 0) {
-      const placeholders = domains.map(() => "?").join(", ");
-      query += ` AND domain IN (${placeholders})`;
-      params.push(...domains);
-    }
-
-    query += " ORDER BY domain, preference_name";
-    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
-    return rows.map((row) => this.parsePreferenceRow(row));
   }
 
   upsertConfigArtifact(domain: string, artifactName: string, data: {
@@ -1453,13 +1490,13 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     artifact_type: ArtifactType;
     purpose?: string;
     constraint_type?: ConstraintType;
-  }): TastePreference {
+  }): ConfigArtifact {
     const existing = this.db.prepare(
-      "SELECT * FROM taste_preferences WHERE domain = ? AND preference_name = ? AND artifact_type IS NOT NULL"
+      "SELECT * FROM config_artifacts WHERE domain = ? AND name = ?"
     ).get(domain, artifactName) as Record<string, unknown> | undefined;
 
     if (existing) {
-      return this.updatePreference(existing.id as string, {
+      return this.updateConfigArtifact(existing.id as string, {
         content: data.content,
         artifact_type: data.artifact_type,
         purpose: data.purpose,
@@ -1467,10 +1504,9 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       })!;
     }
 
-    return this.createPreference({
-      preference_name: artifactName,
+    return this.createConfigArtifact({
+      name: artifactName,
       domain,
-      format: "block",
       content: data.content,
       artifact_type: data.artifact_type,
       purpose: data.purpose,
@@ -1480,7 +1516,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
 
   listConfigProfiles(): Array<{ domain: string; total: number; by_type: Record<string, number> }> {
     const rows = this.db.prepare(
-      "SELECT domain, artifact_type, COUNT(*) as count FROM taste_preferences WHERE artifact_type IS NOT NULL GROUP BY domain, artifact_type ORDER BY domain"
+      "SELECT domain, artifact_type, COUNT(*) as count FROM config_artifacts GROUP BY domain, artifact_type ORDER BY domain"
     ).all() as Array<{ domain: string; artifact_type: string; count: number }>;
 
     const profiles: Record<string, { total: number; by_type: Record<string, number> }> = {};
@@ -1495,18 +1531,93 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     return Object.entries(profiles).map(([domain, data]) => ({ domain, ...data }));
   }
 
-  private parsePreferenceRow(row: Record<string, unknown>): TastePreference {
+  findByPurpose(purpose: string, domains?: string[]): ConfigArtifact[] {
+    let query = "SELECT * FROM config_artifacts WHERE purpose = ?";
+    const params: string[] = [purpose];
+
+    if (domains && domains.length > 0) {
+      const placeholders = domains.map(() => "?").join(", ");
+      query += ` AND domain IN (${placeholders})`;
+      params.push(...domains);
+    }
+
+    query += " ORDER BY domain, name";
+    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseConfigArtifactRow(row));
+  }
+
+  // ============================================
+  // COMBINED PREFERENCES + ARTIFACTS
+  // ============================================
+
+  assemblePreferencesBlock(domain?: string): string {
+    // Query preferences (rules)
+    let prefQuery = "SELECT * FROM preferences";
+    const prefParams: string[] = [];
+    if (domain) {
+      prefQuery += " WHERE domain = ?";
+      prefParams.push(domain);
+    }
+    prefQuery += " ORDER BY domain, constraint_type, preference_name";
+    const prefRows = this.db.prepare(prefQuery).all(...prefParams) as Array<Record<string, unknown>>;
+    const prefs = prefRows.map((row) => this.parsePreferenceRow(row));
+
+    // Query config artifacts (blocks)
+    let artQuery = "SELECT * FROM config_artifacts";
+    const artParams: string[] = [];
+    if (domain) {
+      artQuery += " WHERE domain = ?";
+      artParams.push(domain);
+    }
+    artQuery += " ORDER BY domain, artifact_type, name";
+    const artRows = this.db.prepare(artQuery).all(...artParams) as Array<Record<string, unknown>>;
+    const artifacts = artRows.map((row) => this.parseConfigArtifactRow(row));
+
+    const parts: string[] = [];
+
+    for (const p of prefs) {
+      parts.push(`**${p.preference_name}**\nReject: ${p.reject}\nWant: ${p.want}`);
+    }
+
+    for (const a of artifacts) {
+      parts.push(`**${a.name}**\n${a.content}`);
+    }
+
+    return parts.join("\n\n");
+  }
+
+  listDomains(): Array<{ domain: string; count: number }> {
+    return this.db.prepare(
+      `SELECT domain, SUM(cnt) as count FROM (
+        SELECT domain, COUNT(*) as cnt FROM preferences GROUP BY domain
+        UNION ALL
+        SELECT domain, COUNT(*) as cnt FROM config_artifacts GROUP BY domain
+      ) GROUP BY domain ORDER BY domain`
+    ).all() as Array<{ domain: string; count: number }>;
+  }
+
+  private parsePreferenceRow(row: Record<string, unknown>): Preference {
     return {
       id: row.id as string,
       preference_name: row.preference_name as string,
       domain: row.domain as string,
       reject: row.reject as string,
       want: row.want as string,
-      format: (row.format as PreferenceFormat) || "rule",
-      content: (row.content as string) || null,
       constraint_type: row.constraint_type as ConstraintType,
-      artifact_type: (row.artifact_type as ArtifactType) || null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+    };
+  }
+
+  private parseConfigArtifactRow(row: Record<string, unknown>): ConfigArtifact {
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      domain: row.domain as string,
+      content: row.content as string,
+      artifact_type: row.artifact_type as ArtifactType,
       purpose: (row.purpose as string) || null,
+      constraint_type: row.constraint_type as ConstraintType,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
     };

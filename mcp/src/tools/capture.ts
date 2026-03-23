@@ -7,6 +7,7 @@ import {
   createPreference,
   createBlock,
   deletePreference,
+  deleteConfigArtifact,
 } from "../helpers/open-brain-client.js";
 
 
@@ -144,7 +145,7 @@ const CaptureTool = CreateCompoundTool(
       required: ["preference_name", "content"],
       handler: async (args) => {
         const response = await createBlock({
-          preference_name: args.preference_name as string,
+          name: args.preference_name as string,
           domain: args.domain as string | undefined,
           content: args.content as string,
           constraint_type: args.constraint_type as string | undefined,
@@ -154,25 +155,32 @@ const CaptureTool = CreateCompoundTool(
           return textResult(`Failed to save block: ${response.error || "Unknown error"}`, true);
         }
 
-        const p = response.data;
-        const preview = p.content ? p.content.substring(0, 100) + (p.content.length > 100 ? "..." : "") : "";
+        const a = response.data;
+        const preview = a.content ? a.content.substring(0, 100) + (a.content.length > 100 ? "..." : "") : "";
         return textResult(
-          `Block saved: "${p.preference_name}" (${p.domain})\n` +
+          `Block saved: "${a.name}" (${a.domain})\n` +
           `  ${preview}`,
         );
       },
     },
     remove_preference: {
-      description: "Remove a previously recorded preference (requires preference_id)",
+      description: "Remove a previously recorded preference or config artifact (requires preference_id)",
       required: ["preference_id"],
       handler: async (args) => {
-        const response = await deletePreference(args.preference_id as string);
+        const id = args.preference_id as string;
 
-        if (!response.success) {
-          return textResult(`Failed to remove preference: ${response.error || "Not found"}`, true);
+        // Try preferences first, then config artifacts
+        const prefResponse = await deletePreference(id);
+        if (prefResponse.success) {
+          return textResult(`Preference ${id} removed.`);
         }
 
-        return textResult(`Preference ${args.preference_id} removed.`);
+        const artResponse = await deleteConfigArtifact(id);
+        if (artResponse.success) {
+          return textResult(`Config artifact ${id} removed.`);
+        }
+
+        return textResult(`Failed to remove: ${prefResponse.error || "Not found"}`, true);
       },
     },
   },

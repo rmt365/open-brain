@@ -54,8 +54,6 @@ export type ConstraintType =
   | "business logic"
   | "formatting";
 
-export type PreferenceFormat = "rule" | "block";
-
 export type ArtifactType =
   | "claude-md"
   | "mcp-server"
@@ -112,20 +110,32 @@ export interface Thought {
 }
 
 // ============================================================
-// TASTE PREFERENCE TYPES
+// PREFERENCE TYPES (rules)
 // ============================================================
 
-export interface TastePreference {
+export interface Preference {
   id: string;
   preference_name: string;
   domain: string;
   reject: string;
   want: string;
-  format: PreferenceFormat;
-  content: string | null;
   constraint_type: ConstraintType;
-  artifact_type: ArtifactType | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// CONFIG ARTIFACT TYPES (blocks)
+// ============================================================
+
+export interface ConfigArtifact {
+  id: string;
+  name: string;
+  domain: string;
+  content: string;
+  artifact_type: ArtifactType;
   purpose: string | null;
+  constraint_type: ConstraintType;
   created_at: string;
   updated_at: string;
 }

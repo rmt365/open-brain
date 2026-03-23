@@ -93,8 +93,6 @@ export const ConstraintTypeSchema = z.enum([
   "formatting",
 ]);
 
-export const PreferenceFormatSchema = z.enum(["rule", "block"]);
-
 export const ArtifactTypeSchema = z.enum([
   "claude-md",
   "mcp-server",
@@ -107,17 +105,10 @@ export const ArtifactTypeSchema = z.enum([
 export const CreatePreferenceSchema = z.object({
   preference_name: z.string().min(1, "Preference name is required"),
   domain: z.string().min(1).default("general"),
-  format: PreferenceFormatSchema.default("rule"),
-  reject: z.string().optional(),
-  want: z.string().optional(),
-  content: z.string().optional(),
+  reject: z.string().min(1, "Reject is required"),
+  want: z.string().min(1, "Want is required"),
   constraint_type: ConstraintTypeSchema.default("quality standard"),
-  artifact_type: ArtifactTypeSchema.optional(),
-  purpose: z.string().min(1).optional(),
-}).refine(
-  (d) => d.format === "block" ? !!d.content : (!!d.reject && !!d.want),
-  { message: "Rules require reject+want; blocks require content" },
-);
+});
 
 export const ExtractPreferenceSchema = z.object({
   text: z.string().min(1, "Preference text is required"),
@@ -128,10 +119,25 @@ export const UpdatePreferenceSchema = z.object({
   domain: z.string().min(1).optional(),
   reject: z.string().min(1).optional(),
   want: z.string().min(1).optional(),
-  content: z.string().min(1).optional(),
   constraint_type: ConstraintTypeSchema.optional(),
+});
+
+export const CreateConfigArtifactSchema = z.object({
+  name: z.string().min(1, "Artifact name is required"),
+  domain: z.string().min(1).default("general"),
+  content: z.string().min(1, "Content is required"),
+  artifact_type: ArtifactTypeSchema,
+  purpose: z.string().min(1).optional(),
+  constraint_type: ConstraintTypeSchema.default("domain rule"),
+});
+
+export const UpdateConfigArtifactSchema = z.object({
+  name: z.string().min(1).optional(),
+  domain: z.string().min(1).optional(),
+  content: z.string().min(1).optional(),
   artifact_type: ArtifactTypeSchema.optional(),
   purpose: z.string().min(1).optional(),
+  constraint_type: ConstraintTypeSchema.optional(),
 });
 
 // ============================================================
@@ -163,4 +169,6 @@ export type ListThoughtsInput = z.infer<typeof ListThoughtsSchema>;
 export type CreatePreferenceInput = z.infer<typeof CreatePreferenceSchema>;
 export type UpdatePreferenceInput = z.infer<typeof UpdatePreferenceSchema>;
 export type ExtractPreferenceInput = z.infer<typeof ExtractPreferenceSchema>;
+export type CreateConfigArtifactInput = z.infer<typeof CreateConfigArtifactSchema>;
+export type UpdateConfigArtifactInput = z.infer<typeof UpdateConfigArtifactSchema>;
 export type CreateManagedTopicInput = z.infer<typeof CreateManagedTopicSchema>;

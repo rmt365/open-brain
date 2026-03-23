@@ -5,7 +5,9 @@ vi.mock("../helpers/open-brain-client.js", () => ({
   ingestUrl: vi.fn(),
   uploadDocument: vi.fn(),
   createPreference: vi.fn(),
+  createBlock: vi.fn(),
   deletePreference: vi.fn(),
+  deleteConfigArtifact: vi.fn(),
 }));
 
 const client = await import("../helpers/open-brain-client.js");
