@@ -316,7 +316,10 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       countQuery += " AND status = 'active'";
     }
 
-    if (filters.life_area) {
+    if (filters.life_area === "unclassified") {
+      query += " AND life_area IS NULL AND auto_life_area IS NULL";
+      countQuery += " AND life_area IS NULL AND auto_life_area IS NULL";
+    } else if (filters.life_area) {
       query += " AND (life_area = ? OR auto_life_area = ?)";
       countQuery += " AND (life_area = ? OR auto_life_area = ?)";
       params.push(filters.life_area, filters.life_area);

@@ -447,7 +447,7 @@ class OpenBrainExplore extends LitElement {
     this._loading = true;
     try {
       const params = new URLSearchParams({ limit: '50' });
-      if (area !== 'unclassified') params.set('life_area', area);
+      params.set('life_area', area);
       if (topic && topic !== '(no topic)') params.set('topic', topic);
 
       const resp = await fetch(`${BASE_PATH}/thoughts?${params.toString()}`, {
