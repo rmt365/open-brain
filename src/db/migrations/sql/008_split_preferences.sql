@@ -42,22 +42,24 @@ WHERE format = 'block';
 -- Step 3: Delete migrated rows
 DELETE FROM taste_preferences WHERE format = 'block';
 
--- Step 4: Rename taste_preferences to preferences
+-- Step 4: Drop indexes and triggers BEFORE renaming/dropping columns
+DROP INDEX IF EXISTS idx_taste_pref_domain;
+DROP INDEX IF EXISTS idx_taste_pref_type;
+DROP INDEX IF EXISTS idx_taste_pref_artifact;
+DROP TRIGGER IF EXISTS taste_preferences_update_timestamp;
+DROP TRIGGER IF EXISTS set_taste_preferences_updated_at;
+
+-- Step 5: Rename taste_preferences to preferences
 ALTER TABLE taste_preferences RENAME TO preferences;
 
--- Step 5: Drop unused columns from preferences
+-- Step 6: Drop unused columns from preferences
 -- SQLite 3.35+ supports ALTER TABLE DROP COLUMN
 ALTER TABLE preferences DROP COLUMN format;
 ALTER TABLE preferences DROP COLUMN content;
 ALTER TABLE preferences DROP COLUMN artifact_type;
 ALTER TABLE preferences DROP COLUMN purpose;
 
--- Step 6: Re-create indexes and triggers for the renamed table
-DROP INDEX IF EXISTS idx_taste_pref_domain;
-DROP INDEX IF EXISTS idx_taste_pref_type;
-DROP INDEX IF EXISTS idx_taste_pref_artifact;
-DROP TRIGGER IF EXISTS taste_preferences_update_timestamp;
-
+-- Step 7: Re-create indexes and triggers for the renamed table
 CREATE INDEX IF NOT EXISTS idx_pref_domain ON preferences(domain);
 CREATE INDEX IF NOT EXISTS idx_pref_type ON preferences(constraint_type);
 
