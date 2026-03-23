@@ -143,10 +143,9 @@ class BackupIndicator extends LitElement {
 
   render() {
     return html`
-      <div class="backup-badge ${this._status}" @click=${this._toggleTooltip}>
+      <div class="backup-badge ${this._status}" @click=${this._toggleTooltip} title="Backup status">
         <span class="icon">&#128451;</span>
         <span class="dot"></span>
-        <span class="label">Backup</span>
       </div>
       ${this._showTooltip ? html`
         <div class="tooltip">

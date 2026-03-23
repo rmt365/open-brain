@@ -84,7 +84,9 @@ class OpenBrainChat extends LitElement {
       margin-left: auto;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      flex-shrink: 0;
+      overflow: hidden;
     }
     .header-nav-link {
       color: var(--text-secondary);
