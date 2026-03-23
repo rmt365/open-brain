@@ -22,26 +22,49 @@ class BackupIndicator extends LitElement {
 
   static styles = css`
     :host {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
       position: relative;
     }
 
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+    .backup-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 10px;
       cursor: pointer;
-      transition: background 0.3s;
+      font-size: 11px;
+      transition: background 0.2s;
     }
 
-    .dot.healthy { background: #22c55e; }
-    .dot.warning { background: #f59e0b; }
-    .dot.error { background: #ef4444; }
-    .dot.disabled { background: #64748b; }
+    .backup-badge:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .backup-badge .icon {
+      font-size: 12px;
+    }
+
+    .backup-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .backup-badge.healthy .dot { background: #22c55e; }
+    .backup-badge.warning .dot { background: #f59e0b; }
+    .backup-badge.error .dot { background: #ef4444; }
+    .backup-badge.disabled .dot { background: #64748b; }
+
+    .backup-badge .label {
+      color: #64748b;
+    }
 
     .tooltip {
       position: absolute;
-      top: 18px;
+      top: 24px;
       right: 0;
       background: #1e293b;
       border: 1px solid rgba(129, 140, 248, 0.2);
@@ -120,7 +143,11 @@ class BackupIndicator extends LitElement {
 
   render() {
     return html`
-      <div class="dot ${this._status}" @click=${this._toggleTooltip} title="Backup status"></div>
+      <div class="backup-badge ${this._status}" @click=${this._toggleTooltip}>
+        <span class="icon">&#128451;</span>
+        <span class="dot"></span>
+        <span class="label">Backup</span>
+      </div>
       ${this._showTooltip ? html`
         <div class="tooltip">
           ${!this._enabled
