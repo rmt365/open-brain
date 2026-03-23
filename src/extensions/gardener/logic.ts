@@ -107,7 +107,6 @@ export class GardenAgent {
     const raw = this.db.getRawDb();
     const actions: GardenAction[] = [];
 
-    // Find managed topics with no life_area that have associated thoughts
     const topicsWithoutArea = raw.prepare(`
       SELECT mt.id, mt.name
       FROM managed_topics mt
@@ -115,7 +114,6 @@ export class GardenAgent {
     `).all() as Array<{ id: number; name: string }>;
 
     for (const topic of topicsWithoutArea) {
-      // Look at life_area (or auto_life_area) of thoughts that have this topic in auto_topics
       const areaVotes = raw.prepare(`
         SELECT COALESCE(life_area, auto_life_area) as area, COUNT(*) as cnt
         FROM thoughts
@@ -150,6 +148,83 @@ export class GardenAgent {
     }
 
     return actions;
+  }
+
+  /**
+   * LLM-powered life area assignment for topics with no vote data.
+   * Asks the LLM to classify topic names into life areas.
+   */
+  async autoAssignLifeAreasLLM(): Promise<GardenAction[]> {
+    if (!this.llm) return [];
+
+    const raw = this.db.getRawDb();
+    const topicsWithoutArea = raw.prepare(`
+      SELECT mt.id, mt.name
+      FROM managed_topics mt
+      WHERE mt.life_area IS NULL AND mt.active = 1
+    `).all() as Array<{ id: number; name: string }>;
+
+    if (topicsWithoutArea.length === 0) return [];
+
+    // Get available life areas
+    const lifeAreas = raw.prepare(
+      "SELECT name, description FROM life_areas WHERE active = 1 ORDER BY sort_order"
+    ).all() as Array<{ name: string; description: string | null }>;
+
+    const areaList = lifeAreas.map(a => `- ${a.name}: ${a.description || a.name}`).join("\n");
+    const topicNames = topicsWithoutArea.map(t => t.name);
+
+    const prompt = `Assign each topic to the most appropriate life area.
+
+Life areas:
+${areaList}
+
+Topics to classify:
+${topicNames.map(n => `- ${n}`).join("\n")}
+
+Respond with ONLY valid JSON mapping topic name to life area:
+${JSON.stringify(Object.fromEntries(topicNames.slice(0, 3).map(n => [n, "example_area"])))}`;
+
+    try {
+      const response = await this.llm.complete(
+        "You are a topic classifier. Respond with valid JSON only — a flat object mapping topic names to life area names.",
+        prompt,
+      );
+
+      if (!response) return [];
+
+      // Parse JSON, handling possible markdown code fences
+      const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const assignments = JSON.parse(cleaned) as Record<string, string>;
+      const validAreas = new Set(lifeAreas.map(a => a.name));
+      const actions: GardenAction[] = [];
+
+      for (const topic of topicsWithoutArea) {
+        const area = assignments[topic.name];
+        if (area && validAreas.has(area)) {
+          raw.prepare(
+            "UPDATE managed_topics SET life_area = ? WHERE id = ?"
+          ).run(area, topic.id);
+
+          actions.push({
+            type: "auto_assign_life_area",
+            details: {
+              topic_id: topic.id,
+              topic_name: topic.name,
+              assigned_life_area: area,
+              vote_count: 0,
+              source: "llm",
+            },
+            affected_ids: [String(topic.id)],
+          });
+        }
+      }
+
+      return actions;
+    } catch (error) {
+      console.error("[gardener] LLM life area assignment failed:", error);
+      return [];
+    }
   }
 
   // ============================================
@@ -306,7 +381,15 @@ If no near-duplicates exist, respond with: {"groups": []}`;
     const tagActions = this.retroactivelyTag();
     allActions.push(...tagActions);
 
-    // Step 5: LLM consolidation
+    // Step 5: LLM life area assignment (for topics with no vote data)
+    if (this.llm) {
+      const llmAreaActions = await this.autoAssignLifeAreasLLM();
+      allActions.push(...llmAreaActions);
+    } else {
+      skippedSteps.push("llm_life_areas (no LLM available)");
+    }
+
+    // Step 6: LLM consolidation
     if (this.llm) {
       const consolidateActions = await this.consolidateSuggestions();
       allActions.push(...consolidateActions);
