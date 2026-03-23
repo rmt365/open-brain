@@ -1134,10 +1134,18 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   // SUGGESTED TOPICS
   // ============================================
 
-  suggestTopic(name: string, thoughtId?: string): SuggestedTopic {
+  suggestTopic(name: string, thoughtId?: string): SuggestedTopic | null {
+    const normalized = name.toLowerCase().trim();
+
+    // Skip if already a managed topic or pending suggestion
+    const existing = this.db.prepare(
+      "SELECT 1 FROM managed_topics WHERE name = ? AND active = 1 UNION SELECT 1 FROM suggested_topics WHERE name = ? AND status = 'pending'"
+    ).get(normalized, normalized);
+    if (existing) return null;
+
     this.db.prepare(
       "INSERT INTO suggested_topics (name, suggested_from_thought_id) VALUES (?, ?)"
-    ).run(name.toLowerCase().trim(), thoughtId || null);
+    ).run(normalized, thoughtId || null);
 
     const row = this.db.prepare(
       "SELECT * FROM suggested_topics WHERE rowid = last_insert_rowid()"
