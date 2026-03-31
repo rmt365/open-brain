@@ -30,6 +30,7 @@ docker-compose.worktree.yml
 
 # Deploy instance envs (contain secrets)
 deploy/instances/*.env
+deploy/instances/.env.shared
 !deploy/instances/.env.template
 
 # Ollama models (large)
