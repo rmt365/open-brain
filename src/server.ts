@@ -15,6 +15,8 @@ import { createDocumentRoutes } from "./routes/documents.ts";
 import { createUIRoutes } from "./ui/routes.ts";
 import { ThoughtManager } from "./logic/thoughts.ts";
 import { createAuthMiddleware } from "./middleware/auth.ts";
+import { requireScope } from "./middleware/require-scope.ts";
+import { createApiKeyRoutes } from "./routes/api-keys.ts";
 import type { ExtensionRegistration } from "./extensions/types.ts";
 import { getBackupHealth } from "./logic/backup-health.ts";
 
@@ -55,8 +57,30 @@ export class OpenBrainServer {
       c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     });
 
-    // API key auth middleware
-    this.app.use("*", createAuthMiddleware(this.config.apiKey));
+    // API key auth middleware (master key + DB-managed keys)
+    this.app.use("*", createAuthMiddleware(this.config.apiKey, this.dbManager));
+
+    // Global scope gating: read for GET/HEAD, write for mutations
+    this.app.use("*", async (c, next) => {
+      // deno-lint-ignore no-explicit-any
+      const scopes = (c as any).get("authScopes") as string[] | undefined;
+      if (!scopes) {
+        // Auth was skipped (public route)
+        await next();
+        return;
+      }
+      const method = c.req.method;
+      if (method === "GET" || method === "HEAD") {
+        if (!scopes.includes("read")) {
+          return c.json({ error: "Forbidden: read scope required" }, 403);
+        }
+      } else if (method !== "OPTIONS") {
+        if (!scopes.includes("write")) {
+          return c.json({ error: "Forbidden: write scope required" }, 403);
+        }
+      }
+      await next();
+    });
   }
 
   private setupRoutes() {
@@ -100,6 +124,9 @@ export class OpenBrainServer {
 
     // Config artifact CRUD, upsert, profiles, and purpose search routes
     this.app.route("/config", createConfigRoutes(this.dbManager));
+
+    // API key management routes (admin scope enforced inside)
+    this.app.route("/api-keys", createApiKeyRoutes(this.dbManager));
 
     // UI routes (PWA chat interface)
     this.app.route("/ui", createUIRoutes(this.config.basePath));

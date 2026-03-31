@@ -1,5 +1,7 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 import './backup-indicator.js';
+import './api-key-dialog.js';
+import { hasApiKey, getAuthHeaders } from './auth-mixin.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -43,6 +45,7 @@ class OpenBrainBrowse extends LitElement {
     _lightboxSrc: { type: String, state: true },
     _lifeAreas: { type: Array, state: true },
     _online: { type: Boolean, state: true },
+    _showApiKeyDialog: { type: Boolean, state: true },
   };
 
   static styles = css`
@@ -383,6 +386,7 @@ class OpenBrainBrowse extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this._showApiKeyDialog = !hasApiKey();
     this._loadLifeAreas();
     this._loadThoughts();
     this._onOnline = () => { this._online = true; };
@@ -409,15 +413,8 @@ class OpenBrainBrowse extends LitElement {
     }
   }
 
-  _getApiKey() {
-    return localStorage.getItem('open-brain-api-key') || '';
-  }
-
   _getHeaders() {
-    const headers = { 'Content-Type': 'application/json' };
-    const apiKey = this._getApiKey();
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-    return headers;
+    return getAuthHeaders();
   }
 
   async _loadThoughts(append = false) {
@@ -429,6 +426,7 @@ class OpenBrainBrowse extends LitElement {
       if (this._activeFilter) params.set('type', this._activeFilter);
 
       const res = await fetch(`${BASE_PATH}/thoughts?${params}`, { headers: this._getHeaders() });
+      if (res.status === 401) { this._showApiKeyDialog = true; return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 
@@ -581,8 +579,19 @@ class OpenBrainBrowse extends LitElement {
     return TYPE_LABELS[type] || type;
   }
 
+  _onApiKeyChanged() {
+    this._showApiKeyDialog = false;
+    this._loadLifeAreas();
+    this._loadThoughts();
+  }
+
   render() {
     return html`
+      <api-key-dialog
+        .open=${this._showApiKeyDialog}
+        .required=${!hasApiKey()}
+        @api-key-changed=${this._onApiKeyChanged}
+      ></api-key-dialog>
       <div class="header">
         <div class="header-icon">&#129504;</div>
         <span class="header-title">Open Brain</span>

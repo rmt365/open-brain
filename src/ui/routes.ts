@@ -119,6 +119,30 @@ export function createUIRoutes(basePath: string = ""): Hono {
     return c.html(html);
   });
 
+  // GET /ui/keys -- API key management page
+  router.get("/keys", (c: Context) => {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1e1b4b">
+  <title>Open Brain — API Keys</title>
+  <link rel="manifest" href="${basePath}/ui/manifest.json">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0e1a; min-height: 100dvh; }
+  </style>
+</head>
+<body>
+  <api-key-manager></api-key-manager>
+  <script>window.__BASE_PATH = '${basePath}';</script>
+  <script type="module" src="${basePath}/ui/static/js/components/api-key-manager.js"></script>
+</body>
+</html>`;
+    return c.html(html);
+  });
+
   // GET /ui/manifest.json -- generated dynamically with base path
   router.get("/manifest.json", (_c: Context) => {
     const manifest = {

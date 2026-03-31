@@ -1,6 +1,8 @@
 import { LitElement, html, css, unsafeHTML } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked@15/lib/marked.esm.js';
 import './backup-indicator.js';
+import './api-key-dialog.js';
+import { getApiKey, setApiKey, hasApiKey, getAuthHeaders } from './auth-mixin.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -970,24 +972,15 @@ class OpenBrainChat extends LitElement {
   }
 
   _getApiKey() {
-    return localStorage.getItem('open-brain-api-key') || '';
+    return getApiKey();
   }
 
   _setApiKey(key) {
-    if (key) {
-      localStorage.setItem('open-brain-api-key', key);
-    } else {
-      localStorage.removeItem('open-brain-api-key');
-    }
+    setApiKey(key);
   }
 
   _getHeaders() {
-    const headers = { 'Content-Type': 'application/json' };
-    const apiKey = this._getApiKey();
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
-    return headers;
+    return getAuthHeaders();
   }
 
   _scrollToBottom() {
@@ -1467,9 +1460,6 @@ class OpenBrainChat extends LitElement {
   }
 
   _saveApiKey() {
-    const input = this.renderRoot.querySelector('.api-key-input');
-    const key = input ? input.value.trim() : '';
-    this._setApiKey(key);
     this._showApiKeyDialog = false;
   }
 
@@ -1901,40 +1891,7 @@ class OpenBrainChat extends LitElement {
     `;
   }
 
-  _renderApiKeyDialog() {
-    const currentKey = this._getApiKey();
-    return html`
-      <div class="api-key-overlay" @click=${(e) => {
-        if (e.target === e.currentTarget) {
-          this._showApiKeyDialog = false;
-        }
-      }}>
-        <div class="api-key-dialog">
-          <h3>${currentKey ? 'API Key Settings' : 'Enter API Key'}</h3>
-          <p>${currentKey
-            ? 'Update or clear your API key.'
-            : 'An API key is required to use Open Brain.'
-          }</p>
-          <input
-            class="api-key-input"
-            type="password"
-            placeholder="Enter API key..."
-            .value=${currentKey}
-            @keydown=${(e) => { if (e.key === 'Enter') this._saveApiKey(); }}
-          />
-          <div class="btn-row">
-            ${currentKey ? html`
-              <button class="btn-danger" @click=${this._clearApiKey}>Clear</button>
-            ` : ''}
-            <button class="btn-secondary" @click=${() => {
-              this._showApiKeyDialog = false;
-            }}>Cancel</button>
-            <button class="btn-primary" @click=${this._saveApiKey}>Save</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
+  // API key dialog is now handled by shared <api-key-dialog> component
 
   render() {
     const hasMessages = this.messages.length > 0;
@@ -2041,7 +1998,10 @@ class OpenBrainChat extends LitElement {
         </button>
       </div>
 
-      ${this._showApiKeyDialog ? this._renderApiKeyDialog() : ''}
+      <api-key-dialog
+        .open=${this._showApiKeyDialog}
+        @api-key-changed=${() => { this._showApiKeyDialog = false; }}
+      ></api-key-dialog>
       ${this._showPreferences ? this._renderPreferencesPanel() : ''}
       ${this._lightboxSrc ? html`
         <div class="lightbox-overlay" @click=${() => { this._lightboxSrc = null; }}>

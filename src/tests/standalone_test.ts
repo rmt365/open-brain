@@ -274,7 +274,7 @@ Deno.test({
 
 function createTestApp(apiKey: string | null): Hono {
   const app = new Hono();
-  app.use("*", createAuthMiddleware(apiKey));
+  app.use("*", createAuthMiddleware(apiKey, null));
 
   // Test routes
   app.get("/health", (c) => c.json({ status: "ok" }));

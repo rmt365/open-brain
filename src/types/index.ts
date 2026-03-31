@@ -141,6 +141,28 @@ export interface ConfigArtifact {
 }
 
 // ============================================================
+// API KEY TYPES
+// ============================================================
+
+export type ApiKeyScope = "read" | "write" | "admin";
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: ApiKeyScope[];
+  enabled: boolean;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Returned only on creation — includes the raw key shown once */
+export interface ApiKeyCreated extends ApiKey {
+  raw_key: string;
+}
+
+// ============================================================
 // TAXONOMY TYPES
 // ============================================================
 

@@ -20,6 +20,8 @@ import type {
   SuggestedTopic,
   SuggestionStatus,
   ThoughtChunk,
+  ApiKey,
+  ApiKeyScope,
 } from "../types/index.ts";
 import type { ClassificationResult } from "../logic/classifier.ts";
 
@@ -1622,6 +1624,111 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       updated_at: row.updated_at as string,
     };
   }
+
+  // ============================================
+  // API KEYS
+  // ============================================
+
+  async createApiKey(data: { name: string; scopes: ApiKeyScope[] }): Promise<{ apiKey: ApiKey; rawKey: string }> {
+    const id = crypto.randomUUID();
+    const rawKey = "ob_" + crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "").slice(0, 16);
+    const keyHash = await hashApiKey(rawKey);
+    const keyPrefix = rawKey.slice(0, 11);
+    const scopes = data.scopes.join(",");
+
+    this.db.prepare(`
+      INSERT INTO api_keys (id, name, key_hash, key_prefix, scopes)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, data.name, keyHash, keyPrefix, scopes);
+
+    return { apiKey: this.getApiKey(id)!, rawKey };
+  }
+
+  getApiKeyByHash(keyHash: string): ApiKey | null {
+    const row = this.db.prepare(
+      "SELECT * FROM api_keys WHERE key_hash = ? AND enabled = 1"
+    ).get(keyHash) as Record<string, unknown> | undefined;
+    return row ? this.parseApiKeyRow(row) : null;
+  }
+
+  getApiKey(id: string): ApiKey | null {
+    const row = this.db.prepare(
+      "SELECT * FROM api_keys WHERE id = ?"
+    ).get(id) as Record<string, unknown> | undefined;
+    return row ? this.parseApiKeyRow(row) : null;
+  }
+
+  listApiKeys(): ApiKey[] {
+    const rows = this.db.prepare(
+      "SELECT * FROM api_keys ORDER BY created_at DESC"
+    ).all() as Array<Record<string, unknown>>;
+    return rows.map((row) => this.parseApiKeyRow(row));
+  }
+
+  updateApiKey(id: string, data: { name?: string; scopes?: ApiKeyScope[]; enabled?: boolean }): ApiKey | null {
+    const existing = this.getApiKey(id);
+    if (!existing) return null;
+
+    const updates: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (data.name !== undefined) {
+      updates.push("name = ?");
+      params.push(data.name);
+    }
+    if (data.scopes !== undefined) {
+      updates.push("scopes = ?");
+      params.push(data.scopes.join(","));
+    }
+    if (data.enabled !== undefined) {
+      updates.push("enabled = ?");
+      params.push(data.enabled ? 1 : 0);
+    }
+
+    if (updates.length === 0) return existing;
+
+    params.push(id);
+    this.db.prepare(
+      `UPDATE api_keys SET ${updates.join(", ")} WHERE id = ?`
+    ).run(...params);
+
+    return this.getApiKey(id);
+  }
+
+  deleteApiKey(id: string): boolean {
+    const count = this.db.prepare(
+      "DELETE FROM api_keys WHERE id = ?"
+    ).run(id);
+    return count > 0;
+  }
+
+  touchApiKeyLastUsed(keyHash: string): void {
+    this.db.prepare(
+      "UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE key_hash = ?"
+    ).run(keyHash);
+  }
+
+  private parseApiKeyRow(row: Record<string, unknown>): ApiKey {
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      key_prefix: row.key_prefix as string,
+      scopes: (row.scopes as string).split(",") as ApiKeyScope[],
+      enabled: (row.enabled as number) === 1,
+      last_used_at: (row.last_used_at as string) || null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+    };
+  }
+}
+
+/** SHA-256 hash a raw API key to hex string */
+export async function hashApiKey(rawKey: string): Promise<string> {
+  const data = new TextEncoder().encode(rawKey);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 let dbInstance: OpenBrainDatabaseManager | null = null;

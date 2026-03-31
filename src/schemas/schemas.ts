@@ -159,6 +159,23 @@ export const CreateManagedTopicSchema = z.object({
 });
 
 // ============================================================
+// API KEY SCHEMAS
+// ============================================================
+
+export const ApiKeyScopeSchema = z.enum(["read", "write", "admin"]);
+
+export const CreateApiKeySchema = z.object({
+  name: z.string().min(1, "Key name is required"),
+  scopes: z.array(ApiKeyScopeSchema).min(1, "At least one scope is required"),
+});
+
+export const UpdateApiKeySchema = z.object({
+  name: z.string().min(1).optional(),
+  scopes: z.array(ApiKeyScopeSchema).min(1).optional(),
+  enabled: z.boolean().optional(),
+});
+
+// ============================================================
 // TYPESCRIPT TYPE EXPORTS
 // ============================================================
 
@@ -172,3 +189,5 @@ export type ExtractPreferenceInput = z.infer<typeof ExtractPreferenceSchema>;
 export type CreateConfigArtifactInput = z.infer<typeof CreateConfigArtifactSchema>;
 export type UpdateConfigArtifactInput = z.infer<typeof UpdateConfigArtifactSchema>;
 export type CreateManagedTopicInput = z.infer<typeof CreateManagedTopicSchema>;
+export type CreateApiKeyInput = z.infer<typeof CreateApiKeySchema>;
+export type UpdateApiKeyInput = z.infer<typeof UpdateApiKeySchema>;
