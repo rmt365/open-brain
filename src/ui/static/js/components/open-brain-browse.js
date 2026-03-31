@@ -597,6 +597,7 @@ class OpenBrainBrowse extends LitElement {
         <span class="header-title">Open Brain</span>
         <a href="${BASE_PATH}/ui/brain" class="header-nav-link" title="Capture thoughts">&#128172;</a>
         <a href="${BASE_PATH}/ui/explore" class="header-nav-link" title="Explore brain">&#127758;</a>
+        <a href="${BASE_PATH}/ui/keys" class="header-nav-link" title="Manage API keys">&#128273;</a>
         <backup-indicator></backup-indicator>
         <div class="header-status">
           <div class="status-dot ${this._online ? '' : 'offline'}"></div>
