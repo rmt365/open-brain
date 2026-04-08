@@ -757,13 +757,9 @@ export class ThoughtManager {
     question: string,
     history?: Array<{ role: "user" | "assistant"; content: string }>
   ): Promise<string> {
-    // 1. Search for relevant thoughts (always against the current question, not history)
     const searchResults = await this.search(question, undefined, 10);
-
-    // 2. Get taste preferences for additional context
     const preferences = this.db.listPreferences();
 
-    // 3. Build context
     const thoughtContext = searchResults.length > 0
       ? searchResults.map((r, i) => {
           const t = r.thought;
@@ -796,20 +792,13 @@ export class ThoughtManager {
       ...(prefContext ? ["", "## User preferences:", prefContext] : []),
     ].join("\n");
 
-    // 4. Build messages — prior history first, then context + current question
-    const historyMessages = (history ?? []).map(h => ({
-      role: h.role,
-      content: h.content,
-    }));
-
     const currentUserMessage = history?.length
       ? `${question}\n\n${contextBlock}`
       : `Question: ${question}\n\n${contextBlock}`;
 
-    // 5. Call LLM
     const answer = await this.config.llm.provider.completeWithHistory(
       system,
-      historyMessages,
+      history ?? [],
       currentUserMessage,
       this.config.llm.model
     );

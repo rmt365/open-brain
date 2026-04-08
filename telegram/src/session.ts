@@ -2,8 +2,9 @@
 // Tracks active Q&A sessions per chat so follow-up questions work.
 // Sessions expire after TTL_MS of inactivity and are capped at MAX_TURNS.
 
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TTL_MS = 5 * 60 * 1000;
 const MAX_TURNS = 10;
+const PRUNE_INTERVAL_MS = 60 * 1000; // prune at most once per minute
 
 export interface ConversationTurn {
   role: "user" | "assistant";
@@ -17,6 +18,7 @@ interface Session {
 
 export class SessionStore {
   private sessions = new Map<number, Session>();
+  private lastPruneTime = 0;
 
   isActive(chatId: number): boolean {
     const session = this.sessions.get(chatId);
@@ -52,6 +54,8 @@ export class SessionStore {
 
   pruneExpired(): void {
     const now = Date.now();
+    if (now - this.lastPruneTime < PRUNE_INTERVAL_MS) return;
+    this.lastPruneTime = now;
     for (const [chatId, session] of this.sessions) {
       if (now - session.lastActivity > TTL_MS) {
         this.sessions.delete(chatId);

@@ -37,6 +37,14 @@ Open Brain can run standalone (with its own docker-compose including Ollama) or 
 
 10. **processInChunks Error Isolation** — Each item in a batch processes independently via `Promise.allSettled`. A thrown exception or false return from one item increments the `failed` counter but does not prevent other items in the same chunk or subsequent chunks from processing. This is critical for batch resilience.
 
+11. **LLMProvider Interface Is Complete** — Any class implementing `LLMProvider` must implement all three methods: `complete()`, `completeWithMedia()`, and `completeWithHistory()`. Adding a new method to the interface requires updating both `AnthropicProvider`, `OllamaProvider`, and any mock providers in tests. The interface is the contract — do not call provider methods directly from business logic.
+
+12. **Document Type → Thought Type Mapping** — When a document is uploaded and extraction succeeds, `extractionToThoughtType()` in `src/routes/documents.ts` maps the `extraction.document_type` to a `ThoughtType`. Never hardcode `"reference"` as the thought type for all document uploads. The mapping is the canonical source of truth; update it when new document types are added.
+
+13. **Telegram Session Isolation** — The `SessionStore` (Telegram only, in-memory) is keyed by `chat_id`. Sessions never bleed across chats. The 5-minute TTL and 10-turn cap are safety bounds — do not remove them. Plain text during an active session is treated as a follow-up question, not a capture; this is the intended routing behavior.
+
+14. **Query History Is Client-Supplied** — `POST /thoughts/query` accepts an optional `history` array from the caller. The server never stores or persists conversation history. Retrieval (semantic search) always runs against the current question only, not the history. History is passed to the LLM only to provide conversational context.
+
 ---
 
 ## API Tools
@@ -112,6 +120,12 @@ Rows in `vss_thoughts` are keyed by `thoughts._vss_rowid`. The `storeEmbedding()
 | `decision` | A decision made |
 | `reference` | External resource or link |
 | `reflection` | Introspective or retrospective thought |
+| `expense` | Receipt, bill, invoice, or payment record |
+| `contract` | Lease, agreement, or signed document |
+| `maintenance` | Repair record, service history, or property info |
+| `insurance` | Policy, pink slip, or coverage document |
+| `event` | Something that happened on a specific date |
+| `person` | Entity record for a human — relationship, biographical details |
 
 ### Source Channels
 

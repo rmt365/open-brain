@@ -29,7 +29,6 @@ export async function handleAsk(
 
     const answer = response.data.answer;
 
-    // Record the exchange in the session
     sessions.addTurn(chatId, "user", question);
     sessions.addTurn(chatId, "assistant", answer);
 

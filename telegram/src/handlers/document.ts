@@ -1,5 +1,6 @@
 import { Context } from "grammy";
 import { uploadDocument } from "../client.ts";
+import { downloadTelegramFile } from "../download.ts";
 
 export async function handleDocument(ctx: Context, openBrainUrl: string): Promise<void> {
   try {
@@ -33,17 +34,8 @@ export async function handleDocument(ctx: Context, openBrainUrl: string): Promis
 
     await ctx.reply("Processing document...");
 
-    // Download file from Telegram
-    const file = await ctx.api.getFile(fileId);
-    const fileUrl = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
-    const response = await fetch(fileUrl);
-
-    if (!response.ok) {
-      await ctx.reply("Failed to download file from Telegram. Try again.");
-      return;
-    }
-
-    const fileData = new Uint8Array(await response.arrayBuffer());
+    const fileData = await downloadTelegramFile(ctx, fileId);
+    if (!fileData) return;
     const caption = ctx.message?.caption || undefined;
 
     const result = await uploadDocument(openBrainUrl, fileData, filename, mimeType, caption);
