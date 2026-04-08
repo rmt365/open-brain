@@ -1036,10 +1036,11 @@ class OpenBrainChat extends LitElement {
   }
 
   _parseInput(text) {
-    if (text.startsWith('?')) return { isQuery: true, isPref: false, content: text.slice(1).trim() };
-    if (text.startsWith('/ask ')) return { isQuery: true, isPref: false, content: text.slice(5).trim() };
-    if (text.startsWith('/pref ')) return { isQuery: false, isPref: true, content: text.slice(6).trim() };
-    return { isQuery: false, isPref: false, content: text };
+    if (text.startsWith('?')) return { isQuery: true, isPref: false, isDone: false, content: text.slice(1).trim() };
+    if (text.startsWith('/ask ')) return { isQuery: true, isPref: false, isDone: false, content: text.slice(5).trim() };
+    if (text.startsWith('/pref ')) return { isQuery: false, isPref: true, isDone: false, content: text.slice(6).trim() };
+    if (text === '/done' || text === '/end') return { isQuery: false, isPref: false, isDone: true, content: text };
+    return { isQuery: false, isPref: false, isDone: false, content: text };
   }
 
   _triggerFileInput() {
@@ -1220,7 +1221,13 @@ class OpenBrainChat extends LitElement {
     const textarea = this.renderRoot.querySelector('textarea');
     if (textarea) textarea.style.height = 'auto';
 
-    const { isQuery, isPref, content } = this._parseInput(text);
+    const { isQuery, isPref, isDone, content } = this._parseInput(text);
+
+    if (isDone) {
+      this._queryHistory = [];
+      this._addMsg('system', 'Conversation ended.');
+      return;
+    }
 
     // Preference extraction mode — no offline support
     if (isPref) {
@@ -1247,7 +1254,8 @@ class OpenBrainChat extends LitElement {
     }
 
     // Query mode — no offline support
-    if (isQuery) {
+    // Also route to query if a conversation is already active (no ? needed for follow-ups)
+    if (isQuery || this._queryHistory.length > 0) {
       if (!this.online) {
         this._addMsg('error', 'Brain queries require an internet connection.');
         return;
@@ -1984,7 +1992,7 @@ class OpenBrainChat extends LitElement {
         <div class="empty-state">
           <div class="icon">&#129504;</div>
           <div class="hint">
-            Type a thought to capture it, <strong>?</strong> to ask your brain, or <strong>/pref</strong> to set a preference.
+            Type a thought to capture it, <strong>?</strong> to ask your brain, <strong>/pref</strong> to set a preference, or <strong>/done</strong> to end a conversation.
           </div>
         </div>
       `}
