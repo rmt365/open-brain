@@ -88,8 +88,18 @@ Three packages vendored from the P2B monorepo in `packages/`. They are small and
 - `@p2b/db-backup` — `bootstrapService()`, Litestream, health checks
 - `@p2b/hono-core` — `globalErrorHandler`, `validateJson`, `PromptLoader`
 
+## Development Process
+
+Every feature follows **DESIGN → BUILD → STABILIZE → SIMPLIFY → COMMIT**.
+Full checklist: `docs/AGENT_DEVELOPMENT_CHECKLIST.md`
+
+- **Stabilize:** write tests, add invariants to `docs/SERVICE.md`, run `deno task verify`
+- **Simplify:** run `/simplify` skill to review for reuse, quality, and efficiency issues
+- Never commit after build alone — stabilize and simplify first
+
 ## Don't Do This
 
 - **NEVER use React** — Lit web components only
 - Don't hardcode file paths — use env vars
 - Don't skip `deno task verify` before committing
+- Don't commit without running stabilize and simplify first
