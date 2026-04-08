@@ -6,7 +6,13 @@ export type ContentBlock =
   | { type: "image"; media_type: string; data: string }
   | { type: "document"; media_type: string; data: string };
 
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface LLMProvider {
   complete(system: string, user: string, model?: string): Promise<string | null>;
   completeWithMedia(system: string, content: ContentBlock[], model?: string): Promise<string | null>;
+  completeWithHistory(system: string, history: ConversationMessage[], user: string, model?: string): Promise<string | null>;
 }

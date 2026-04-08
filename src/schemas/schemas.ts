@@ -16,6 +16,12 @@ export const ThoughtTypeSchema = z.enum([
   "decision",
   "reference",
   "reflection",
+  "expense",
+  "contract",
+  "maintenance",
+  "insurance",
+  "event",
+  "person",
 ]);
 
 export const SourceChannelSchema = z.enum([
@@ -68,8 +74,14 @@ export const SearchThoughtsSchema = z.object({
   limit: z.number().int().min(1).max(100).default(10),
 });
 
+export const ConversationTurnSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+});
+
 export const QueryBrainSchema = z.object({
   question: z.string().min(1, "Question is required"),
+  history: z.array(ConversationTurnSchema).max(20).optional(),
 });
 
 export const ListThoughtsSchema = z.object({

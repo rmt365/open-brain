@@ -180,7 +180,7 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
     async (c) => {
       try {
         const body = c.req.valid("json");
-        const answer = await manager.queryBrain(body.question);
+        const answer = await manager.queryBrain(body.question, body.history);
 
         return c.json<ApiResponse<{ answer: string }>>({
           success: true,

@@ -608,3 +608,161 @@ Add a priority field to preferences and config artifacts that controls when they
 **Impact:** Reduces context window noise from ~2000 tokens (everything) to ~500 tokens (P1 only) for typical tool responses. Improves LLM output quality.
 
 **Design doc:** `.claude/plans/radiant-skipping-rabbit.md` (full design with schema, assembly logic, UI mockups)
+
+---
+
+### OB-020: Richer Thought Types for Real-World Capture
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-020 |
+| **Status** | proposed |
+| **Priority** | high |
+| **Added** | Apr 8, 2026 |
+
+Expand `ThoughtType` with domain-specific types and wire up document extraction so the detected document type maps directly to the thought type. Zero-decision capture: send a receipt, it becomes an `expense`; send a lease, it becomes a `contract`.
+
+**New types:**
+- `expense` — receipts, bills, invoices, any payment record
+- `contract` — leases, agreements, signed documents
+- `maintenance` — repairs, service records, paint colors, property info, appliance history
+- `insurance` — policies, pink slips, coverage documents
+- `event` — things that happened on a specific date
+- `person` — entity record for a human (see OB-022)
+
+**Changes:**
+- Expand `ThoughtType` union in `src/types/index.ts`
+- Add `extractionToThoughtType()` mapping in `src/routes/documents.ts` — replaces hardcoded `"reference"` with type inferred from `extraction.document_type`
+- Update classifier prompt (`src/prompts/thought-classification.yaml`) with new types and examples for text capture (e.g. "paid $45 electric bill" → `expense`)
+- No DB migration needed — `thought_type` is an unconstrained text column
+- Update UI type filters and color mapping in browse/explore
+
+**Note on household data:** No separate household table exists. The `maintenance` type covers property/household records — paint colors, appliance repairs, renovation notes all capture as `maintenance` thoughts.
+
+---
+
+### OB-021: Conversational Query + Telegram Sessions
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-021 |
+| **Status** | proposed |
+| **Priority** | high |
+| **Added** | Apr 8, 2026 |
+
+Add conversation history to the query endpoint and a session mode to the Telegram bot so follow-up questions work naturally.
+
+**Part A — Stateful query endpoint:**
+- `POST /thoughts/query` gains optional `history: Array<{ role: "user" | "assistant", content: string }>` param
+- `queryBrain()` accepts and passes history as prior turns in the LLM call
+- Search still runs against the current question only (keeps retrieval focused)
+
+**Part B — Telegram session mode:**
+- New `telegram/src/session.ts` — in-memory session store keyed by `chat_id`
+- TTL: 5 minutes from last activity. Max: 10 turns per session
+- `/ask <question>` starts or continues a session
+- Plain text while session is active → treated as follow-up, not captured as thought
+- `/done` or timeout → exit session, return to capture mode
+- Each bot reply while in session shows: _↩ Reply to follow up · /done to exit_
+
+**Part C — PWA:**
+- Chat interface already exists. Wire up client-side history: each Q&A exchange appended to a local array, passed with subsequent queries. No backend session needed.
+
+---
+
+### OB-022: People & Relationship Model
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-022 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Apr 8, 2026 |
+| **Depends on** | OB-020 |
+
+Make the brain the home for relationship knowledge — replacing scattered Google Contacts data with something that can be queried intelligently.
+
+**Model:** A person is a `thought` with `thought_type: "person"` and structured `metadata.person` fields (full_name, aliases, relationship, relationship_path, birthday, contact info). No new tables — person records live alongside all other thoughts.
+
+**Observations** are regular thoughts linked to a person via `metadata.subject_person_id`. Example: "Emma's partner is now Jake (April 2026)" captured as a `note` thought with `subject_person_id` pointing to Emma's person record.
+
+**Supersession** (update pattern for changing facts):
+- New observation added with updated info
+- Old observation marked `superseded_by: <new-thought-id>`
+- Add `superseded_by` column to `thoughts` table (nullable)
+- Queries exclude superseded thoughts by default; retrievable with `?include_superseded=true`
+- API: `POST /thoughts/:id/supersede`, `GET /thoughts/:id/history`
+
+**Capture UX:** Plain text "Emma's partner is Jake" → captured normally. Classifier detects it relates to a known person via `auto_people`. No friction. PWA chat: `/person Emma Chen` starts or retrieves her record; follow-ups add observations.
+
+---
+
+### OB-023: Type-Aware Aging
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-023 |
+| **Status** | proposed |
+| **Priority** | low |
+| **Added** | Apr 8, 2026 |
+| **Depends on** | OB-017, OB-020 |
+
+Extend the OB-017 gardener with type-specific aging rules to reduce query noise from stale data without deleting anything.
+
+**Rules:**
+
+| Type | Rule | Action |
+|------|------|--------|
+| `task` | > 90 days, never referenced | Auto-archive |
+| `expense` | > 7 years | Auto-archive |
+| `reference` (reading queue) | > 30 days, never accessed | Surface in weekly digest: summarize or dismiss |
+| `maintenance` | Evergreen | Never auto-archive |
+| `person` | Evergreen | Never auto-archive |
+| `contract` | Evergreen until expiry | Flag 30 days before `details.expiry_date` |
+| `insurance` | Expiry-aware | Surface 60 days before expiry |
+| `note`, `idea`, `reflection` | > 2 years, no topics, zero access | Tag `needs_review`, add to digest |
+
+**Implementation:** New `AgingGardener` class extending the existing gardener scheduler. Actions: `archive` (status → archived, excluded from default search), `surface` (add to weekly digest), `flag` (tag `needs_review`). No deletions — archived thoughts always retrievable with `?include_archived=true`.
+
+---
+
+### OB-024: Audio Capture & Transcription
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-024 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Apr 8, 2026 |
+
+Transcribe audio sent via Telegram (voice messages, forwarded voicemails, audio files) and capture the transcript as a thought. Zero-decision — send audio, brain captures it.
+
+**Pipeline:**
+1. Detect audio in Telegram handler: `audio/ogg` (voice messages), `audio/mpeg`, `audio/m4a`, `audio/wav`
+2. Download from Telegram (same pattern as photos/documents)
+3. Transcribe via Whisper API (OpenAI) — ~$0.006/min, no infrastructure needed
+4. Optional LLM cleanup pass: remove filler words, fix proper nouns, preserve meaning
+5. Capture as `note` thought with transcript as `text`, audio file archived to Wasabi
+6. Bot reply confirms: transcript preview + "Saved and indexed"
+
+**Metadata stored:**
+```json
+{
+  "transcribed_from": "audio",
+  "audio_duration_seconds": 45,
+  "audio_mime_type": "audio/ogg",
+  "wasabi_key": "...",
+  "whisper_model": "whisper-1"
+}
+```
+
+**Thought type:** `note` — no new type needed. `source_channel: telegram`, metadata indicates audio origin.
+
+**Telegram message types handled:**
+- Voice message (microphone button) → `message:voice`
+- Audio file sent as attachment → `message:audio`
+- Both route to the same transcription handler
+
+**Config:** Add `OPENAI_API_KEY` env var (Whisper only — no other OpenAI dependency). If not configured, bot replies: "Audio received but transcription is not configured. Add a caption to save as a note."
+
+**Future:** Local Whisper via a sidecar container is a viable alternative if OpenAI dependency is undesirable, but adds ops complexity. Start with the API.

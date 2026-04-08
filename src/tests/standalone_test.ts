@@ -37,6 +37,14 @@ class MockLLMProvider implements LLMProvider {
   ): Promise<string | null> {
     return this.response;
   }
+  async completeWithHistory(
+    _system: string,
+    _history: import("../logic/llm/types.ts").ConversationMessage[],
+    _user: string,
+    _model?: string
+  ): Promise<string | null> {
+    return this.response;
+  }
 }
 
 // =============================================
@@ -435,6 +443,273 @@ Deno.test("config: reads override values from env vars", () => {
           // ignore
         }
       }
+    }
+  }
+});
+
+// =============================================
+// OB-020: Richer thought types
+// =============================================
+
+import { extractionToThoughtType } from "../routes/documents.ts";
+
+Deno.test("extractionToThoughtType: receipt maps to expense", () => {
+  assertEquals(extractionToThoughtType("receipt"), "expense");
+});
+
+Deno.test("extractionToThoughtType: invoice maps to expense", () => {
+  assertEquals(extractionToThoughtType("invoice"), "expense");
+});
+
+Deno.test("extractionToThoughtType: bill maps to expense", () => {
+  assertEquals(extractionToThoughtType("bill"), "expense");
+});
+
+Deno.test("extractionToThoughtType: agreement maps to contract", () => {
+  assertEquals(extractionToThoughtType("agreement"), "contract");
+});
+
+Deno.test("extractionToThoughtType: lease maps to contract", () => {
+  assertEquals(extractionToThoughtType("lease"), "contract");
+});
+
+Deno.test("extractionToThoughtType: contract maps to contract", () => {
+  assertEquals(extractionToThoughtType("contract"), "contract");
+});
+
+Deno.test("extractionToThoughtType: warranty maps to maintenance", () => {
+  assertEquals(extractionToThoughtType("warranty"), "maintenance");
+});
+
+Deno.test("extractionToThoughtType: manual maps to maintenance", () => {
+  assertEquals(extractionToThoughtType("manual"), "maintenance");
+});
+
+Deno.test("extractionToThoughtType: insurance maps to insurance", () => {
+  assertEquals(extractionToThoughtType("insurance"), "insurance");
+});
+
+Deno.test("extractionToThoughtType: policy maps to insurance", () => {
+  assertEquals(extractionToThoughtType("policy"), "insurance");
+});
+
+Deno.test("extractionToThoughtType: statement maps to reference", () => {
+  assertEquals(extractionToThoughtType("statement"), "reference");
+});
+
+Deno.test("extractionToThoughtType: unknown type falls back to reference", () => {
+  assertEquals(extractionToThoughtType("other"), "reference");
+  assertEquals(extractionToThoughtType("foobar"), "reference");
+  assertEquals(extractionToThoughtType(""), "reference");
+});
+
+Deno.test("extractionToThoughtType: case-insensitive matching", () => {
+  assertEquals(extractionToThoughtType("RECEIPT"), "expense");
+  assertEquals(extractionToThoughtType("Invoice"), "expense");
+  assertEquals(extractionToThoughtType("Agreement"), "contract");
+});
+
+Deno.test({
+  name: "classifier: accepts new type 'expense'",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const mockResponse = JSON.stringify({ thought_type: "expense", topics: ["bills"], confidence: 0.9 });
+    const provider = new MockLLMProvider(mockResponse);
+    const result = await classifyThought("Paid $180 electric bill", provider);
+    assertExists(result);
+    assertEquals(result.thought_type, "expense");
+  },
+});
+
+Deno.test({
+  name: "classifier: accepts new type 'contract'",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const mockResponse = JSON.stringify({ thought_type: "contract", topics: ["lease"], confidence: 0.9 });
+    const provider = new MockLLMProvider(mockResponse);
+    const result = await classifyThought("Signed the new apartment lease", provider);
+    assertExists(result);
+    assertEquals(result.thought_type, "contract");
+  },
+});
+
+Deno.test({
+  name: "classifier: accepts new type 'maintenance'",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const mockResponse = JSON.stringify({ thought_type: "maintenance", topics: ["car"], confidence: 0.85 });
+    const provider = new MockLLMProvider(mockResponse);
+    const result = await classifyThought("Oil change at Jiffy Lube", provider);
+    assertExists(result);
+    assertEquals(result.thought_type, "maintenance");
+  },
+});
+
+Deno.test({
+  name: "classifier: accepts new type 'insurance'",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const mockResponse = JSON.stringify({ thought_type: "insurance", topics: ["car"], confidence: 0.9 });
+    const provider = new MockLLMProvider(mockResponse);
+    const result = await classifyThought("Car insurance renewal policy", provider);
+    assertExists(result);
+    assertEquals(result.thought_type, "insurance");
+  },
+});
+
+Deno.test({
+  name: "classifier: accepts new type 'event'",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const mockResponse = JSON.stringify({ thought_type: "event", topics: ["family"], confidence: 0.9 });
+    const provider = new MockLLMProvider(mockResponse);
+    const result = await classifyThought("Emma's birthday party last Saturday", provider);
+    assertExists(result);
+    assertEquals(result.thought_type, "event");
+  },
+});
+
+Deno.test({
+  name: "classifier: accepts new type 'person'",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const mockResponse = JSON.stringify({ thought_type: "person", topics: ["family"], confidence: 0.95 });
+    const provider = new MockLLMProvider(mockResponse);
+    const result = await classifyThought("Emma Chen — Robin's niece, born 1994", provider);
+    assertExists(result);
+    assertEquals(result.thought_type, "person");
+  },
+});
+
+// =============================================
+// OB-021: SessionStore
+// =============================================
+
+import { SessionStore } from "../../telegram/src/session.ts";
+
+Deno.test("session: new store has no active sessions", () => {
+  const store = new SessionStore();
+  assertEquals(store.isActive(12345), false);
+  assertEquals(store.getHistory(12345), []);
+});
+
+Deno.test("session: becomes active after first turn", () => {
+  const store = new SessionStore();
+  store.addTurn(12345, "user", "What is my car colour?");
+  assertEquals(store.isActive(12345), true);
+});
+
+Deno.test("session: getHistory returns turns in order", () => {
+  const store = new SessionStore();
+  store.addTurn(100, "user", "question one");
+  store.addTurn(100, "assistant", "answer one");
+  store.addTurn(100, "user", "question two");
+
+  const history = store.getHistory(100);
+  assertEquals(history.length, 3);
+  assertEquals(history[0], { role: "user", content: "question one" });
+  assertEquals(history[1], { role: "assistant", content: "answer one" });
+  assertEquals(history[2], { role: "user", content: "question two" });
+});
+
+Deno.test("session: clear removes session", () => {
+  const store = new SessionStore();
+  store.addTurn(200, "user", "hello");
+  assertEquals(store.isActive(200), true);
+  store.clear(200);
+  assertEquals(store.isActive(200), false);
+  assertEquals(store.getHistory(200), []);
+});
+
+Deno.test("session: independent sessions per chat ID", () => {
+  const store = new SessionStore();
+  store.addTurn(1, "user", "chat 1 message");
+  store.addTurn(2, "user", "chat 2 message");
+
+  assertEquals(store.getHistory(1).length, 1);
+  assertEquals(store.getHistory(2).length, 1);
+  assertEquals(store.getHistory(1)[0].content, "chat 1 message");
+  assertEquals(store.getHistory(2)[0].content, "chat 2 message");
+});
+
+Deno.test("session: caps history at 20 entries (10 turns)", () => {
+  const store = new SessionStore();
+  // Add 25 turns (50 entries) — should be capped
+  for (let i = 0; i < 25; i++) {
+    store.addTurn(300, "user", `question ${i}`);
+    store.addTurn(300, "assistant", `answer ${i}`);
+  }
+  const history = store.getHistory(300);
+  assertEquals(history.length <= 20, true);
+  // Most recent entries should be preserved
+  const lastEntry = history[history.length - 1];
+  assertEquals(lastEntry.role, "assistant");
+  assertEquals(lastEntry.content, "answer 24");
+});
+
+Deno.test("session: pruneExpired removes nothing when all sessions are fresh", () => {
+  const store = new SessionStore();
+  store.addTurn(400, "user", "fresh session");
+  store.pruneExpired();
+  assertEquals(store.isActive(400), true);
+});
+
+Deno.test("session: clear on non-existent session is a no-op", () => {
+  const store = new SessionStore();
+  // Should not throw
+  store.clear(99999);
+  assertEquals(store.isActive(99999), false);
+});
+
+// =============================================
+// OB-024: Transcription graceful degradation
+// =============================================
+
+import { transcribeAudio } from "../../telegram/src/transcription.ts";
+
+Deno.test("transcription: returns null when OPENAI_API_KEY is not set", async () => {
+  // Ensure the key is not set
+  const saved = Deno.env.get("OPENAI_API_KEY");
+  try {
+    Deno.env.delete("OPENAI_API_KEY");
+  } catch { /* may not be set */ }
+
+  try {
+    const result = await transcribeAudio(
+      new Uint8Array([0, 1, 2]),
+      "audio/ogg",
+      "test.ogg"
+    );
+    assertEquals(result, null);
+  } finally {
+    if (saved !== undefined) Deno.env.set("OPENAI_API_KEY", saved);
+  }
+});
+
+Deno.test("transcription: returns null when Whisper API returns an error", async () => {
+  const saved = Deno.env.get("OPENAI_API_KEY");
+  Deno.env.set("OPENAI_API_KEY", "invalid-key-for-test");
+
+  try {
+    // Using a tiny invalid audio payload — Whisper will reject it with 400
+    const result = await transcribeAudio(
+      new Uint8Array([0x00, 0x01]),
+      "audio/ogg",
+      "bad.ogg"
+    );
+    // Should return null (graceful failure), not throw
+    assertEquals(result, null);
+  } finally {
+    if (saved !== undefined) {
+      Deno.env.set("OPENAI_API_KEY", saved);
+    } else {
+      try { Deno.env.delete("OPENAI_API_KEY"); } catch { /* ok */ }
     }
   }
 });

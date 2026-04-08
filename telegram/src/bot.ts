@@ -6,6 +6,8 @@ import { handleSetup } from "./handlers/setup.ts";
 import { handleAsk } from "./handlers/ask.ts";
 import { handlePref } from "./handlers/pref.ts";
 import { handleDocument } from "./handlers/document.ts";
+import { handleAudio } from "./handlers/audio.ts";
+import { SessionStore } from "./session.ts";
 
 /**
  * Check if a user is allowed to use the bot.
@@ -29,11 +31,14 @@ function isAuthorized(ctx: Context): boolean {
 }
 
 export function setupBot(bot: Bot, openBrainUrl: string): void {
+  const sessions = new SessionStore();
+
   // Set bot commands for the menu
   bot.api.setMyCommands([
     { command: "start", description: "Welcome message and command list" },
     { command: "search", description: "Semantic search your thoughts" },
     { command: "ask", description: "Ask your brain a question" },
+    { command: "done", description: "Exit Q&A session, return to capture mode" },
     { command: "recent", description: "List your last 10 thoughts" },
     { command: "pref", description: "Set a taste preference from natural language" },
     { command: "setup", description: "Show setup instructions for AI tools" },
@@ -68,8 +73,22 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
   // /search command
   bot.command("search", (ctx) => handleSearch(ctx, openBrainUrl));
 
-  // /ask command
-  bot.command("ask", (ctx) => handleAsk(ctx, openBrainUrl));
+  // /ask command — start or continue a Q&A session
+  bot.command("ask", (ctx) => {
+    const question = (ctx.message?.text || "").replace(/^\/ask\s*/, "").trim();
+    return handleAsk(ctx, openBrainUrl, sessions, question);
+  });
+
+  // /done command — exit Q&A session
+  bot.command("done", async (ctx) => {
+    const chatId = ctx.chat?.id;
+    if (chatId && sessions.isActive(chatId)) {
+      sessions.clear(chatId);
+      await ctx.reply("Session ended. Send me anything to capture it as a thought.");
+    } else {
+      await ctx.reply("No active session. Send me anything to capture it as a thought.");
+    }
+  });
 
   // /pref command
   bot.command("pref", (ctx) => handlePref(ctx, openBrainUrl));
@@ -84,6 +103,18 @@ export function setupBot(bot: Bot, openBrainUrl: string): void {
   bot.on("message:photo", (ctx) => handleDocument(ctx, openBrainUrl));
   bot.on("message:document", (ctx) => handleDocument(ctx, openBrainUrl));
 
-  // Default text handler -- capture as thought
-  bot.on("message:text", (ctx) => handleCapture(ctx, openBrainUrl));
+  // Voice and audio handlers
+  bot.on("message:voice", (ctx) => handleAudio(ctx, openBrainUrl));
+  bot.on("message:audio", (ctx) => handleAudio(ctx, openBrainUrl));
+
+  // Default text handler — if in active Q&A session, treat as follow-up; otherwise capture
+  bot.on("message:text", (ctx) => {
+    const chatId = ctx.chat?.id;
+    sessions.pruneExpired();
+    if (chatId && sessions.isActive(chatId)) {
+      const question = ctx.message?.text || "";
+      return handleAsk(ctx, openBrainUrl, sessions, question);
+    }
+    return handleCapture(ctx, openBrainUrl);
+  });
 }

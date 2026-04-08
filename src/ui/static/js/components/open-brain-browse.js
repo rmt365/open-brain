@@ -15,6 +15,12 @@ const TYPE_COLORS = {
   question: '#06b6d4',
   decision: '#a855f7',
   reflection: '#ec4899',
+  expense: '#f97316',
+  contract: '#14b8a6',
+  maintenance: '#84cc16',
+  insurance: '#0ea5e9',
+  event: '#fb7185',
+  person: '#10b981',
 };
 
 // Abbreviated type labels
@@ -27,9 +33,18 @@ const TYPE_LABELS = {
   question: 'qn',
   decision: 'dec',
   reflection: 'refl',
+  expense: 'exp',
+  contract: 'contract',
+  maintenance: 'maint',
+  insurance: 'ins',
+  event: 'event',
+  person: 'person',
 };
 
-const THOUGHT_TYPES = ['reference', 'idea', 'task', 'note', 'observation', 'question', 'decision', 'reflection'];
+const THOUGHT_TYPES = [
+  'reference', 'idea', 'task', 'note', 'observation', 'question', 'decision', 'reflection',
+  'expense', 'contract', 'maintenance', 'insurance', 'event', 'person',
+];
 
 class OpenBrainBrowse extends LitElement {
   static properties = {

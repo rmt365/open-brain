@@ -1,7 +1,7 @@
 // Open Brain - Ollama LLM Provider
 // For local LLM inference (future use when local classification is ready)
 
-import type { LLMProvider, ContentBlock } from "./types.ts";
+import type { LLMProvider, ContentBlock, ConversationMessage } from "./types.ts";
 
 export interface OllamaProviderConfig {
   baseUrl: string;
@@ -62,6 +62,38 @@ export class OllamaProvider implements LLMProvider {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[OpenBrain:Ollama] Completion failed: ${msg}`);
+      return null;
+    }
+  }
+
+  async completeWithHistory(
+    system: string,
+    history: ConversationMessage[],
+    user: string,
+    model?: string
+  ): Promise<string | null> {
+    const resolvedModel = model ?? this.defaultModel;
+
+    try {
+      const messages = [
+        { role: "system", content: system },
+        ...history.map(h => ({ role: h.role, content: h.content })),
+        { role: "user", content: user },
+      ];
+
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: resolvedModel, messages, stream: false }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!response.ok) return null;
+      const data = (await response.json()) as OllamaChatResponse;
+      return data.message?.content ?? null;
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[OpenBrain:Ollama] History completion failed: ${msg}`);
       return null;
     }
   }

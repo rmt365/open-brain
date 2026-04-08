@@ -13,7 +13,13 @@ export type ThoughtType =
   | "observation"
   | "decision"
   | "reference"
-  | "reflection";
+  | "reflection"
+  | "expense"
+  | "contract"
+  | "maintenance"
+  | "insurance"
+  | "event"
+  | "person";
 
 export type SourceChannel =
   | "cli"

@@ -2,7 +2,7 @@
 // Direct SDK integration, no AI Gateway dependency
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { LLMProvider, ContentBlock } from "./types.ts";
+import type { LLMProvider, ContentBlock, ConversationMessage } from "./types.ts";
 
 export interface AnthropicProviderConfig {
   apiKey: string;
@@ -59,6 +59,44 @@ export class AnthropicProvider implements LLMProvider {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[OpenBrain:Anthropic] Completion failed: ${msg}`);
+      return null;
+    }
+  }
+
+  async completeWithHistory(
+    system: string,
+    history: ConversationMessage[],
+    user: string,
+    model?: string
+  ): Promise<string | null> {
+    const resolvedModel = model ?? this.defaultModel;
+
+    try {
+      const messages: Anthropic.MessageParam[] = [
+        ...history.map(h => ({ role: h.role, content: h.content })),
+        { role: "user", content: user },
+      ];
+
+      console.log(
+        `[OpenBrain:Anthropic] Calling ${resolvedModel} with history (${history.length} prior turns)`
+      );
+
+      const response = await this.client.messages.create({
+        model: resolvedModel,
+        max_tokens: this.maxTokens,
+        temperature: this.temperature,
+        system,
+        messages,
+      });
+
+      const firstBlock = response.content[0];
+      if (firstBlock && firstBlock.type === "text") {
+        return firstBlock.text;
+      }
+      return null;
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[OpenBrain:Anthropic] History completion failed: ${msg}`);
       return null;
     }
   }

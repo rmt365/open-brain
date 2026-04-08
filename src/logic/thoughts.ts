@@ -753,8 +753,11 @@ export class ThoughtManager {
   // ============================================================
 
   /** Ask a question against the brain. Searches for context, then synthesizes an answer via LLM. */
-  async queryBrain(question: string): Promise<string> {
-    // 1. Search for relevant thoughts
+  async queryBrain(
+    question: string,
+    history?: Array<{ role: "user" | "assistant"; content: string }>
+  ): Promise<string> {
+    // 1. Search for relevant thoughts (always against the current question, not history)
     const searchResults = await this.search(question, undefined, 10);
 
     // 2. Get taste preferences for additional context
@@ -784,21 +787,34 @@ export class ThoughtManager {
       "Answer the question based on the context provided. Be concise and direct.",
       "If the context doesn't contain enough information, say so honestly.",
       "Reference specific thoughts when relevant (by their number in brackets).",
-    ].join(" ");
+      history?.length ? "This is a multi-turn conversation — use the prior exchanges for context when answering follow-up questions." : "",
+    ].filter(Boolean).join(" ");
 
-    const userPrompt = [
-      `Question: ${question}`,
-      "",
+    const contextBlock = [
       "## Relevant thoughts from the brain:",
       thoughtContext,
       ...(prefContext ? ["", "## User preferences:", prefContext] : []),
     ].join("\n");
 
-    // 4. Call LLM
-    const answer = await this.config.llm.provider.complete(system, userPrompt, this.config.llm.model);
+    // 4. Build messages — prior history first, then context + current question
+    const historyMessages = (history ?? []).map(h => ({
+      role: h.role,
+      content: h.content,
+    }));
+
+    const currentUserMessage = history?.length
+      ? `${question}\n\n${contextBlock}`
+      : `Question: ${question}\n\n${contextBlock}`;
+
+    // 5. Call LLM
+    const answer = await this.config.llm.provider.completeWithHistory(
+      system,
+      historyMessages,
+      currentUserMessage,
+      this.config.llm.model
+    );
 
     if (!answer) {
-      // Fallback: return raw search results
       if (searchResults.length === 0) {
         return "I couldn't find anything relevant in your brain for that question.";
       }

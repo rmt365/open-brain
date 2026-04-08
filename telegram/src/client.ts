@@ -102,10 +102,11 @@ export async function searchThoughts(
 export async function queryBrain(
   baseUrl: string,
   question: string,
+  history?: Array<{ role: "user" | "assistant"; content: string }>,
 ): Promise<ApiResponse<{ answer: string }>> {
   return request<ApiResponse<{ answer: string }>>(baseUrl, "/thoughts/query", {
     method: "POST",
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, history }),
   });
 }
 

@@ -25,6 +25,7 @@ export interface ClassificationResult {
 const VALID_THOUGHT_TYPES: Set<string> = new Set([
   "note", "idea", "task", "question",
   "observation", "decision", "reference", "reflection",
+  "expense", "contract", "maintenance", "insurance", "event", "person",
 ]);
 
 // Life areas are now loaded from the database and passed to classifyThought().

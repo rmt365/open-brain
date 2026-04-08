@@ -4,9 +4,29 @@
 import { Hono } from "@hono/hono";
 import type { ThoughtManager } from "../logic/thoughts.ts";
 import type { ServiceConfig } from "../config.ts";
-import type { LifeArea } from "../types/index.ts";
+import type { LifeArea, ThoughtType } from "../types/index.ts";
 import { DocumentStorage } from "../logic/document-storage.ts";
 import { extractDocument } from "../logic/document-extractor.ts";
+
+export function extractionToThoughtType(docType: string): ThoughtType {
+  const map: Record<string, ThoughtType> = {
+    receipt: "expense",
+    invoice: "expense",
+    bill: "expense",
+    agreement: "contract",
+    lease: "contract",
+    contract: "contract",
+    warranty: "maintenance",
+    manual: "maintenance",
+    service_record: "maintenance",
+    insurance: "insurance",
+    policy: "insurance",
+    statement: "reference",
+    letter: "reference",
+    other: "reference",
+  };
+  return map[docType.toLowerCase()] ?? "reference";
+}
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -98,12 +118,17 @@ export function createDocumentRoutes(
         console.warn("[OpenBrain:DocUpload] Wasabi not configured, skipping document storage");
       }
 
+      // Infer thought type from document extraction, falling back to "reference"
+      const inferredType = extraction
+        ? extractionToThoughtType(extraction.document_type)
+        : "reference";
+
       // Create thought with complete metadata (including wasabi_key if upload succeeded)
       const thought = await manager.capture(
         thoughtText,
         sourceChannel as "api" | "web" | "telegram" | "mcp",
         metadata,
-        "reference",
+        inferredType,
         undefined,
         lifeArea
       );

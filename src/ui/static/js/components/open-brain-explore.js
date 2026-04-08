@@ -18,6 +18,12 @@ const TYPE_COLORS = {
   question: '#06b6d4',
   decision: '#a855f7',
   reflection: '#ec4899',
+  expense: '#f97316',
+  contract: '#14b8a6',
+  maintenance: '#84cc16',
+  insurance: '#0ea5e9',
+  event: '#fb7185',
+  person: '#10b981',
 };
 
 
