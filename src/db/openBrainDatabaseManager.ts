@@ -31,6 +31,9 @@ const VSS_EXTENSIONS = [
 ];
 
 export class OpenBrainDatabaseManager extends BaseDatabaseManager {
+  /** Resolves when migrations and VSS setup are complete. Await in tests before querying. */
+  readonly initialized: Promise<void>;
+
   constructor(dbPath?: string) {
     const migrationsDir = join(
       dirname(fromFileUrl(import.meta.url)),
@@ -46,21 +49,28 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
     console.log(`[OpenBrainDB] Migrations directory: ${migrationsDir}`);
 
     super(resolvedDbPath, {
-      migrateDatabase: true,
+      migrateDatabase: false,
       loadExtensions: true,
       migrationsDir,
       extensions: VSS_EXTENSIONS,
     });
 
-    // Create VSS virtual tables and rebuild index from existing embeddings
-    const vssReady = this.createVSSTable();
-    if (vssReady) {
-      const { indexed } = this.rebuildVSSIndex();
-      console.log(`[OpenBrainDB] VSS ready — ${indexed} embeddings indexed`);
-      this.createChunkVSSTable();
-    } else {
-      console.log("[OpenBrainDB] VSS not available — search will use text fallback");
-    }
+    // Run migrations then set up VSS — store the promise so callers can await readiness.
+    this.initialized = this.runMigrations()
+      .then(() => {
+        const vssReady = this.createVSSTable();
+        if (vssReady) {
+          const { indexed } = this.rebuildVSSIndex();
+          console.log(`[OpenBrainDB] VSS ready — ${indexed} embeddings indexed`);
+          this.createChunkVSSTable();
+        } else {
+          console.log("[OpenBrainDB] VSS not available — search will use text fallback");
+        }
+      })
+      .catch((err) => {
+        console.error("[OpenBrainDB] Initialization failed:", err);
+        throw err;
+      });
   }
 
   // ============================================
@@ -431,6 +441,50 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
   }
 
   // ============================================
+  // SUPERSESSION
+  // ============================================
+
+  /**
+   * Mark a thought as superseded by a newer version.
+   * Sets status to 'superseded' and records the ID of the replacement.
+   */
+  supersedeThought(oldId: string, newId: string): void {
+    this.db.prepare(
+      "UPDATE thoughts SET status = 'superseded', superseded_by = ? WHERE id = ?"
+    ).run(newId, oldId);
+  }
+
+  /**
+   * Return the full supersession chain for a thought, from the oldest
+   * ancestor to the current active version.
+   * superseded_by on a thought points to the newer thought that replaced it.
+   */
+  getSupersessionChain(id: string): Thought[] {
+    // Walk backwards to find the root (the thought with no predecessor)
+    let rootId = id;
+    const visited = new Set<string>([rootId]);
+    while (true) {
+      const row = this.db.prepare(
+        "SELECT id FROM thoughts WHERE superseded_by = ?"
+      ).get(rootId) as { id: string } | undefined;
+      if (!row || visited.has(row.id)) break;
+      visited.add(row.id);
+      rootId = row.id;
+    }
+
+    // Walk forward from root following superseded_by
+    const chain: Thought[] = [];
+    let current: string | null = rootId;
+    while (current) {
+      const thought = this.getThought(current);
+      if (!thought) break;
+      chain.push(thought);
+      current = thought.superseded_by;
+    }
+    return chain;
+  }
+
+  // ============================================
   // CLASSIFICATION / EMBEDDING UPDATES
   // ============================================
 
@@ -671,6 +725,7 @@ export class OpenBrainDatabaseManager extends BaseDatabaseManager {
       embedding_model: (row.embedding_model as string) || null,
       has_embedding: row.embedding !== null && row.embedding !== undefined,
       status: (row.status || "active") as ThoughtStatus,
+      superseded_by: (row.superseded_by as string) || null,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       last_surfaced: (row.last_surfaced as string) || null,

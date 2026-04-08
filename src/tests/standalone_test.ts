@@ -1,5 +1,5 @@
 // Open Brain - Standalone Service Behavior Tests
-// Tests LLM factory, classifier, auth middleware, config, and embeddings
+// Tests LLM factory, classifier, auth middleware, config, embeddings, and supersession
 
 import {
   assertEquals,
@@ -16,6 +16,7 @@ import { classifyThought } from "../logic/classifier.ts";
 import { createAuthMiddleware } from "../middleware/auth.ts";
 import { readRawConfig } from "../config.ts";
 import { generateEmbedding } from "../logic/embeddings.ts";
+import { OpenBrainDatabaseManager } from "../db/openBrainDatabaseManager.ts";
 
 // =============================================
 // Mock LLM Provider
@@ -727,3 +728,102 @@ Deno.test("embeddings: returns null when Ollama is unreachable", async () => {
   );
   assertEquals(result, null);
 });
+
+// =============================================
+// Supersession (OB-022)
+// =============================================
+
+async function withTempDb<T>(fn: (db: OpenBrainDatabaseManager) => Promise<T> | T): Promise<T> {
+  const tmp = Deno.makeTempFileSync({ suffix: ".db" });
+  const db = new OpenBrainDatabaseManager(tmp);
+  await db.initialized;
+  try {
+    return await fn(db);
+  } finally {
+    try { db.close(); } catch { /* ok */ }
+    try { Deno.removeSync(tmp); } catch { /* ok */ }
+  }
+}
+
+Deno.test("supersession: supersedeThought sets status and superseded_by", () =>
+  withTempDb((db) => {
+    const original = db.createThought({ text: "original thought", source_channel: "api" });
+    const replacement = db.createThought({ text: "updated thought", source_channel: "api" });
+
+    db.supersedeThought(original.id, replacement.id);
+
+    const updated = db.getThought(original.id)!;
+    assertEquals(updated.status, "superseded");
+    assertEquals(updated.superseded_by, replacement.id);
+  })
+);
+
+Deno.test("supersession: supersedeThought does not alter the replacement thought", () =>
+  withTempDb((db) => {
+    const original = db.createThought({ text: "original", source_channel: "api" });
+    const replacement = db.createThought({ text: "replacement", source_channel: "api" });
+
+    db.supersedeThought(original.id, replacement.id);
+
+    const rep = db.getThought(replacement.id)!;
+    assertEquals(rep.status, "active");
+    assertEquals(rep.superseded_by, null);
+  })
+);
+
+Deno.test("supersession: getSupersessionChain returns single thought when no chain", () =>
+  withTempDb((db) => {
+    const t = db.createThought({ text: "standalone thought", source_channel: "api" });
+    const chain = db.getSupersessionChain(t.id);
+    assertEquals(chain.length, 1);
+    assertEquals(chain[0].id, t.id);
+  })
+);
+
+Deno.test("supersession: getSupersessionChain returns full chain oldest-to-newest", () =>
+  withTempDb((db) => {
+    const v1 = db.createThought({ text: "v1", source_channel: "api" });
+    const v2 = db.createThought({ text: "v2", source_channel: "api" });
+    const v3 = db.createThought({ text: "v3", source_channel: "api" });
+
+    db.supersedeThought(v1.id, v2.id);
+    db.supersedeThought(v2.id, v3.id);
+
+    // Querying from any node in the chain returns the full chain
+    const chain = db.getSupersessionChain(v2.id);
+    assertEquals(chain.length, 3);
+    assertEquals(chain[0].id, v1.id);
+    assertEquals(chain[1].id, v2.id);
+    assertEquals(chain[2].id, v3.id);
+  })
+);
+
+Deno.test("supersession: getSupersessionChain returns empty array for unknown id", () =>
+  withTempDb((db) => {
+    assertEquals(db.getSupersessionChain("nonexistent-id").length, 0);
+  })
+);
+
+Deno.test("supersession: superseded thoughts excluded from listThoughts by default", () =>
+  withTempDb((db) => {
+    const v1 = db.createThought({ text: "old version", source_channel: "api" });
+    const v2 = db.createThought({ text: "new version", source_channel: "api" });
+    db.supersedeThought(v1.id, v2.id);
+
+    const ids = db.listThoughts({}).thoughts.map(t => t.id);
+    assertEquals(ids.includes(v1.id), false);
+    assertEquals(ids.includes(v2.id), true);
+  })
+);
+
+Deno.test("supersession: listThoughts with explicit status=superseded returns superseded thoughts", () =>
+  withTempDb((db) => {
+    const v1 = db.createThought({ text: "old version", source_channel: "api" });
+    const v2 = db.createThought({ text: "new version", source_channel: "api" });
+    db.supersedeThought(v1.id, v2.id);
+
+    const { thoughts } = db.listThoughts({ status: "superseded" });
+    assertEquals(thoughts.length, 1);
+    assertEquals(thoughts[0].id, v1.id);
+  })
+);

@@ -9,6 +9,7 @@ import {
   SearchThoughtsSchema,
   IngestUrlSchema,
   QueryBrainSchema,
+  SupersedeThoughtSchema,
 } from "../schemas/schemas.ts";
 import type { ThoughtManager } from "../logic/thoughts.ts";
 import type {
@@ -392,6 +393,59 @@ export function createThoughtRoutes(manager: ThoughtManager): Hono {
       });
     } catch (error) {
       console.error("[OpenBrain:Routes] Error reclassifying thought:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      return c.json<ApiResponse>({ success: false, error: msg }, 500);
+    }
+  });
+
+  // POST /:id/supersede — replace a thought with a new version
+  router.post(
+    "/:id/supersede",
+    validateJson(SupersedeThoughtSchema),
+    async (c) => {
+      try {
+        const id = c.req.param("id");
+        const body = c.req.valid("json");
+        const result = await manager.supersede(
+          id,
+          body.text,
+          body.thought_type,
+          body.metadata,
+        );
+
+        if (!result) {
+          return c.json<ApiResponse>({ success: false, error: "Thought not found" }, 404);
+        }
+
+        return c.json<ApiResponse<{ original: Thought; replacement: Thought }>>({
+          success: true,
+          data: result,
+          message: "Thought superseded",
+        }, 201);
+      } catch (error) {
+        console.error("[OpenBrain:Routes] Error superseding thought:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        return c.json<ApiResponse>({ success: false, error: msg }, 500);
+      }
+    },
+  );
+
+  // GET /:id/history — return the full supersession chain for a thought
+  router.get("/:id/history", (c) => {
+    try {
+      const id = c.req.param("id");
+      const chain = manager.getHistory(id);
+
+      if (chain.length === 0) {
+        return c.json<ApiResponse>({ success: false, error: "Thought not found" }, 404);
+      }
+
+      return c.json<ApiResponse<Thought[]>>({
+        success: true,
+        data: chain,
+      });
+    } catch (error) {
+      console.error("[OpenBrain:Routes] Error fetching thought history:", error);
       const msg = error instanceof Error ? error.message : String(error);
       return c.json<ApiResponse>({ success: false, error: msg }, 500);
     }

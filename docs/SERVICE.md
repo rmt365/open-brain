@@ -45,6 +45,12 @@ Open Brain can run standalone (with its own docker-compose including Ollama) or 
 
 14. **Query History Is Client-Supplied** — `POST /thoughts/query` accepts an optional `history` array from the caller. The server never stores or persists conversation history. Retrieval (semantic search) always runs against the current question only, not the history. History is passed to the LLM only to provide conversational context.
 
+15. **Supersession Is Append-Only** — `POST /thoughts/:id/supersede` creates a NEW thought and marks the original `status=superseded`. It never edits or deletes the original text. The `superseded_by` column on the original points to the replacement. The replacement's `superseded_by` is null until it is itself superseded. Use `GET /thoughts/:id/history` to walk the full chain.
+
+16. **Superseded Thoughts Hidden by Default** — `listThoughts()` (and `GET /thoughts`) filter to `status='active'` unless an explicit `status` filter is supplied. Superseded thoughts are never returned in default list queries. They remain in the DB for audit and chain traversal.
+
+17. **`OpenBrainDatabaseManager.initialized`** — The constructor runs migrations asynchronously via a stored promise. Any code that creates a fresh `OpenBrainDatabaseManager` (e.g., tests) must `await db.initialized` before calling any DB methods. In production the service starts up before handling traffic so this is not normally an issue.
+
 ---
 
 ## API Tools

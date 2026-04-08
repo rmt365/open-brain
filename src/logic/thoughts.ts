@@ -749,6 +749,46 @@ export class ThoughtManager {
   }
 
   // ============================================================
+  // SUPERSESSION
+  // ============================================================
+
+  /**
+   * Supersede an existing thought with a new version.
+   * The original is marked status=superseded and superseded_by=<new id>.
+   * Returns the new thought.
+   */
+  async supersede(
+    id: string,
+    text: string,
+    thoughtType?: ThoughtType,
+    metadata?: Record<string, unknown>
+  ): Promise<{ original: Thought; replacement: Thought } | null> {
+    const original = this.db.getThought(id);
+    if (!original) return null;
+
+    const replacement = await this.capture(
+      text,
+      original.source_channel,
+      metadata,
+      thoughtType ?? original.thought_type,
+      undefined,
+      original.life_area ?? undefined
+    );
+
+    this.db.supersedeThought(id, replacement.id);
+
+    return {
+      original: { ...original, status: "superseded", superseded_by: replacement.id },
+      replacement,
+    };
+  }
+
+  /** Return the full supersession history for a thought (oldest → current). */
+  getHistory(id: string): Thought[] {
+    return this.db.getSupersessionChain(id);
+  }
+
+  // ============================================================
   // BRAIN QUERY (RAG)
   // ============================================================
 

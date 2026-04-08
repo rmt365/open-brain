@@ -32,6 +32,7 @@ class OpenBrainChat extends LitElement {
     _prefFormData: { type: Object, state: true },
     _pendingFiles: { type: Array, state: true },
     _lightboxSrc: { type: String, state: true },
+    _queryHistory: { type: Array, state: true },
   };
 
   static styles = css`
@@ -288,6 +289,32 @@ class OpenBrainChat extends LitElement {
     @keyframes bounce {
       0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
       40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Conversation session bar */
+    .session-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 16px;
+      background: rgba(129, 140, 248, 0.08);
+      border-top: 1px solid rgba(129, 140, 248, 0.15);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .session-end-btn {
+      background: none;
+      border: 1px solid rgba(129, 140, 248, 0.3);
+      color: var(--accent);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .session-end-btn:hover {
+      background: rgba(129, 140, 248, 0.1);
     }
 
     /* Input area */
@@ -929,6 +956,7 @@ class OpenBrainChat extends LitElement {
     this._prefFormData = null;
     this._pendingFiles = [];
     this._lightboxSrc = null;
+    this._queryHistory = [];
   }
 
   connectedCallback() {
@@ -1226,9 +1254,17 @@ class OpenBrainChat extends LitElement {
       }
       this.loading = true;
       try {
-        const result = await this._apiPost('/thoughts/query', { question: content });
+        const body = { question: content };
+        if (this._queryHistory.length > 0) body.history = this._queryHistory;
+        const result = await this._apiPost('/thoughts/query', body);
         if (result.success && result.data) {
-          this._addMsg('system', result.data.answer, { markdown: true });
+          const answer = result.data.answer;
+          this._addMsg('system', answer, { markdown: true });
+          this._queryHistory = [
+            ...this._queryHistory,
+            { role: 'user', content },
+            { role: 'assistant', content: answer },
+          ];
         } else {
           this._addMsg('error', result.error || 'Query failed.');
         }
@@ -1241,7 +1277,8 @@ class OpenBrainChat extends LitElement {
       return;
     }
 
-    // Capture mode
+    // Capture mode — sending a thought ends any active Q&A session
+    this._queryHistory = [];
     const body = { text, source_channel: 'web', metadata: {} };
     if (this.user) body.metadata.user = this.user;
 
@@ -1951,6 +1988,13 @@ class OpenBrainChat extends LitElement {
           </div>
         </div>
       `}
+
+      ${this._queryHistory.length > 0 ? html`
+        <div class="session-bar">
+          <span>↩ conversation active (${this._queryHistory.length / 2} ${this._queryHistory.length === 2 ? 'exchange' : 'exchanges'})</span>
+          <button class="session-end-btn" @click=${() => { this._queryHistory = []; }}>new conversation</button>
+        </div>
+      ` : ''}
 
       <div class="input-area">
         <input

@@ -38,6 +38,7 @@ export const ThoughtStatusSchema = z.enum([
   "active",
   "archived",
   "deleted",
+  "superseded",
 ]);
 
 export const LifeAreaSchema = z.string().min(1);
@@ -92,6 +93,12 @@ export const ListThoughtsSchema = z.object({
   status: ThoughtStatusSchema.optional(),
   limit: z.number().int().min(1).max(100).default(50),
   offset: z.number().int().min(0).default(0),
+});
+
+export const SupersedeThoughtSchema = z.object({
+  text: z.string().min(1, "Replacement text is required"),
+  thought_type: ThoughtTypeSchema.optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 // ============================================================

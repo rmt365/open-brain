@@ -616,9 +616,10 @@ Add a priority field to preferences and config artifacts that controls when they
 | Field | Value |
 |-------|-------|
 | **ID** | OB-020 |
-| **Status** | proposed |
+| **Status** | done |
 | **Priority** | high |
 | **Added** | Apr 8, 2026 |
+| **Completed** | Apr 8, 2026 |
 
 Expand `ThoughtType` with domain-specific types and wire up document extraction so the detected document type maps directly to the thought type. Zero-decision capture: send a receipt, it becomes an `expense`; send a lease, it becomes a `contract`.
 
@@ -646,9 +647,11 @@ Expand `ThoughtType` with domain-specific types and wire up document extraction 
 | Field | Value |
 |-------|-------|
 | **ID** | OB-021 |
-| **Status** | proposed |
+| **Status** | done |
 | **Priority** | high |
 | **Added** | Apr 8, 2026 |
+| **Completed** | Apr 8, 2026 |
+| **Note** | Backend + Telegram done. PWA chat history wiring is a small follow-on (not a separate item). |
 
 Add conversation history to the query endpoint and a session mode to the Telegram bot so follow-up questions work naturally.
 
@@ -731,9 +734,10 @@ Extend the OB-017 gardener with type-specific aging rules to reduce query noise 
 | Field | Value |
 |-------|-------|
 | **ID** | OB-024 |
-| **Status** | proposed |
+| **Status** | done |
 | **Priority** | medium |
 | **Added** | Apr 8, 2026 |
+| **Completed** | Apr 8, 2026 |
 
 Transcribe audio sent via Telegram (voice messages, forwarded voicemails, audio files) and capture the transcript as a thought. Zero-decision — send audio, brain captures it.
 

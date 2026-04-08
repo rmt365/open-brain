@@ -33,7 +33,8 @@ export type SourceChannel =
 export type ThoughtStatus =
   | "active"
   | "archived"
-  | "deleted";
+  | "deleted"
+  | "superseded";
 
 export type Sentiment =
   | "positive"
@@ -110,6 +111,9 @@ export interface Thought {
   created_at: string;
   updated_at: string;
   last_surfaced: string | null;
+
+  // Supersession
+  superseded_by: string | null;
 
   // Metadata
   metadata: Record<string, unknown> | null;
