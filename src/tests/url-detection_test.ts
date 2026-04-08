@@ -138,3 +138,11 @@ Deno.test("isUrlOnlyMessage: thought with URL in the middle is URL-mentioned", (
 Deno.test("isUrlOnlyMessage: no URLs returns false", () => {
   assertEquals(isUrlOnlyMessage("", []), false);
 });
+
+Deno.test("extractUrls: does not treat email address as a URL", () => {
+  assertEquals(extractUrls("her email is tina@twinflamesstudios.com"), []);
+});
+
+Deno.test("extractUrls: does not treat domain part of email as bare domain", () => {
+  assertEquals(extractUrls("contact test@test.com for info"), []);
+});

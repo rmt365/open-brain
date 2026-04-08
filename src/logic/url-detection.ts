@@ -19,8 +19,8 @@ const TWO_PART_TLDS = new Set([
   "co.uk", "com.au", "co.nz", "co.za", "com.br", "co.jp", "co.kr",
 ]);
 
-// Match word.tld or word.tld/path (but not things inside explicit URLs)
-const BARE_DOMAIN_RE = /(?<![/:])(?<!\w)([a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.(?:[a-zA-Z]{2,}\.)?[a-zA-Z]{2,}(?:\/[^\s<>"]*[^\s<>".,;:!?)}\\])?)/g;
+// Match word.tld or word.tld/path (but not things inside explicit URLs or email addresses)
+const BARE_DOMAIN_RE = /(?<![/:@])(?<!\w)([a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.(?:[a-zA-Z]{2,}\.)?[a-zA-Z]{2,}(?:\/[^\s<>"]*[^\s<>".,;:!?)}\\])?)/g;
 
 /**
  * Extract all URLs from text. Returns fully-qualified URLs (bare domains get https:// prepended).
