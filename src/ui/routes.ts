@@ -206,12 +206,18 @@ export function createUIRoutes(basePath: string = ""): Hono {
         ext,
       );
 
+      // JS/CSS must revalidate on every load — no long-lived cache without versioning.
+      // Images/icons are stable and can be cached aggressively.
+      const cacheControl = ["js", "css"].includes(ext)
+        ? "no-cache"
+        : "public, max-age=86400";
+
       if (isBinary) {
         const content = await Deno.readFile(filePath);
         return new Response(content, {
           headers: {
             "Content-Type": contentType,
-            "Cache-Control": "public, max-age=3600",
+            "Cache-Control": cacheControl,
           },
         });
       } else {
@@ -219,7 +225,7 @@ export function createUIRoutes(basePath: string = ""): Hono {
         return new Response(content, {
           headers: {
             "Content-Type": contentType,
-            "Cache-Control": "public, max-age=3600",
+            "Cache-Control": cacheControl,
           },
         });
       }
