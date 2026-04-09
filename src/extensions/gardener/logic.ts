@@ -486,7 +486,7 @@ If no duplicates, respond: {"groups": []}`;
     `).all() as Array<{ id: string }>;
 
     for (const { id } of staleRefs) {
-      this._flagThought(id, "needs_review");
+      this.flagThought(id, "needs_review");
       actions.push({ type: "age_flag", details: { thought_type: "reference", flag: "needs_review", reason: "unread >30d" }, affected_ids: [id] });
     }
 
@@ -500,7 +500,7 @@ If no duplicates, respond: {"groups": []}`;
     `).all() as Array<{ id: string }>;
 
     for (const { id } of staleNotes) {
-      this._flagThought(id, "needs_review");
+      this.flagThought(id, "needs_review");
       actions.push({ type: "age_flag", details: { thought_type: "note/idea/reflection", flag: "needs_review", reason: "untopiced >2y" }, affected_ids: [id] });
     }
 
@@ -514,7 +514,7 @@ If no duplicates, respond: {"groups": []}`;
     `).all() as Array<{ id: string }>;
 
     for (const { id } of expiringContracts) {
-      this._flagThought(id, "expiry_soon");
+      this.flagThought(id, "expiry_soon");
       actions.push({ type: "age_flag", details: { thought_type: "contract", flag: "expiry_soon", reason: "expires <30d" }, affected_ids: [id] });
     }
 
@@ -528,14 +528,14 @@ If no duplicates, respond: {"groups": []}`;
     `).all() as Array<{ id: string }>;
 
     for (const { id } of expiringInsurance) {
-      this._flagThought(id, "expiry_soon");
+      this.flagThought(id, "expiry_soon");
       actions.push({ type: "age_flag", details: { thought_type: "insurance", flag: "expiry_soon", reason: "expires <60d" }, affected_ids: [id] });
     }
 
     return actions;
   }
 
-  private _flagThought(id: string, flag: string): void {
+  private flagThought(id: string, flag: string): void {
     // JSON_SET merges the flag into existing metadata without a pre-read round-trip.
     this.db.getRawDb().prepare(
       "UPDATE thoughts SET metadata = JSON_SET(COALESCE(metadata, '{}'), ?, true) WHERE id = ?"
@@ -546,7 +546,7 @@ If no duplicates, respond: {"groups": []}`;
   // Digest thought capture
   // ============================================
 
-  private captureDigestThought(result: GardenResult): void {
+  private async captureDigestThought(result: GardenResult): Promise<void> {
     const { summary } = result;
     const parts: string[] = [];
     if (summary.topics_approved > 0)
@@ -568,8 +568,7 @@ If no duplicates, respond: {"groups": []}`;
 
     const text = `Gardener report: ${parts.join(", ")}.`;
     if (this.thoughtManager) {
-      // Capture via ThoughtManager so the thought gets embedded and is searchable
-      this.thoughtManager.capture(text, "gardener", undefined, "note", undefined, "meta");
+      await this.thoughtManager.capture(text, "gardener", undefined, "note", undefined, "meta");
     } else {
       this.db.createThought({
         text,
@@ -675,7 +674,7 @@ If no duplicates, respond: {"groups": []}`;
           action.affected_ids,
         );
       }
-      this.captureDigestThought(result);
+      await this.captureDigestThought(result);
     }
 
     return result;
