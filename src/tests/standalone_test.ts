@@ -880,3 +880,66 @@ Deno.test("GardenAgent digest: skips thought capture on no-op run", { sanitizeRe
     assertEquals(thoughts.length, 0);
   })
 );
+
+// =============================================
+// Aging Gardener Tests
+// =============================================
+
+Deno.test("AgingGardener: archives stale tasks", () =>
+  withGardenDb((db) => {
+    const t = db.createThought({ text: "Old task to archive", source_channel: "api", thought_type: "task" });
+    // Backdate to 91 days ago
+    db.getRawDb().prepare("UPDATE thoughts SET created_at = datetime('now', '-91 days') WHERE id = ?").run(t.id);
+
+    const agent = new GardenAgent(db, null);
+    const actions = agent.applyAgingRules();
+
+    assertEquals(actions.filter(a => a.type === "age_archive").length, 1);
+    assertEquals(db.getThought(t.id)?.status, "archived");
+  })
+);
+
+Deno.test("AgingGardener: skips evergreen person thoughts", () =>
+  withGardenDb((db) => {
+    const t = db.createThought({ text: "Tina Dietz, CEO", source_channel: "api", thought_type: "person" });
+    db.getRawDb().prepare("UPDATE thoughts SET created_at = datetime('now', '-1000 days') WHERE id = ?").run(t.id);
+
+    const agent = new GardenAgent(db, null);
+    const actions = agent.applyAgingRules();
+
+    assertEquals(actions.filter(a => a.affected_ids.includes(t.id)).length, 0);
+    assertEquals(db.getThought(t.id)?.status, "active");
+  })
+);
+
+// =============================================
+// Thought Dedup Tests
+// =============================================
+
+Deno.test("ThoughtDedup: supersedes duplicate when LLM identifies it", { sanitizeResources: false, sanitizeOps: false }, () =>
+  withGardenDb(async (db) => {
+    const older = db.createThought({ text: "Tina Dietz, email test@test.com", source_channel: "api", thought_type: "person" });
+    const newer = db.createThought({ text: "Tina Dietz, CEO Twin Flames Studios, email tina@twinflamesstudios.com", source_channel: "api", thought_type: "person" });
+
+    const mockResponse = JSON.stringify({
+      groups: [{ keep_id: newer.id, supersede_ids: [older.id], reason: "corrected email" }],
+    });
+    const llm = new MockLLMProvider(mockResponse);
+    const agent = new GardenAgent(db, llm);
+    const actions = await agent.deduplicateThoughts();
+
+    assertEquals(actions.length, 1);
+    assertEquals(actions[0].type, "thought_dedup");
+    assertEquals(db.getThought(older.id)?.status, "superseded");
+    assertEquals(db.getThought(newer.id)?.status, "active");
+  })
+);
+
+Deno.test("ThoughtDedup: skips when no LLM available", { sanitizeResources: false, sanitizeOps: false }, () =>
+  withGardenDb(async (db) => {
+    const agent = new GardenAgent(db, null);
+    const result = await agent.runFull(false);
+
+    assertStringIncludes(result.summary.skipped_steps.join(","), "thought_dedup");
+  })
+);

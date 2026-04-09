@@ -41,7 +41,7 @@ Deno-based Telegram bot using grammY. Captures text messages as thoughts, suppor
 | **Priority** | critical |
 | **Completed** | Apr 9, 2026 |
 
-Topic gardener built and running daily at 03:00 UTC: auto-approves high-frequency suggestions, deduplicates near-duplicates (LLM + exact name), assigns life areas via voting + LLM fallback, retroactively tags thoughts. Captures a digest thought after each meaningful run (searchable via brain chat). Explore page shows gardener status strip with last run time, pending count, and "Run now" button.
+Topic gardener built and running daily at 03:00 UTC: auto-approves high-frequency suggestions, deduplicates near-duplicates (LLM + exact name), assigns life areas via voting + LLM fallback, retroactively tags thoughts. LLM-powered thought deduplication (supersedes older duplicates of same entity/URL). Type-aware aging (archives stale tasks/expenses, flags stale references/notes, alerts on contract/insurance expiry). Captures a digest thought after each meaningful run (searchable via brain chat). Explore page shows gardener status strip with last run time, pending count, and "Run now" button.
 
 **Next up:** OB-018 (User-Configurable Life Areas + Onboarding) — needed before Tina starts using her brain instance.
 
@@ -706,9 +706,10 @@ Make the brain the home for relationship knowledge — replacing scattered Googl
 | Field | Value |
 |-------|-------|
 | **ID** | OB-023 |
-| **Status** | proposed |
+| **Status** | done |
 | **Priority** | low |
 | **Added** | Apr 8, 2026 |
+| **Completed** | Apr 9, 2026 |
 | **Depends on** | OB-017, OB-020 |
 
 Extend the OB-017 gardener with type-specific aging rules to reduce query noise from stale data without deleting anything.

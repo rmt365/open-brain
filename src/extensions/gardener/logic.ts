@@ -20,6 +20,11 @@ export class GardenAgent {
     this.llm = llm ?? null;
   }
 
+  // LLM responses sometimes wrap JSON in markdown fences — strip them.
+  private static cleanJson(response: string): string {
+    return response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  }
+
   // ============================================
   // Step 1: Deduplicate pending suggestions
   // ============================================
@@ -194,7 +199,7 @@ ${JSON.stringify(Object.fromEntries(topicNames.slice(0, 3).map(n => [n, "example
       if (!response) return [];
 
       // Parse JSON, handling possible markdown code fences
-      const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const cleaned = GardenAgent.cleanJson(response);
       const assignments = JSON.parse(cleaned) as Record<string, string>;
       const validAreas = new Set(lifeAreas.map(a => a.name));
       const actions: GardenAction[] = [];
@@ -351,6 +356,190 @@ If no near-duplicates exist, respond with: {"groups": []}`;
   }
 
   // ============================================
+  // Thought deduplication (LLM-powered)
+  // ============================================
+
+  async deduplicateThoughts(): Promise<GardenAction[]> {
+    if (!this.llm) return [];
+
+    const raw = this.db.getRawDb();
+    const thoughts = raw.prepare(`
+      SELECT id, text, thought_type, created_at
+      FROM thoughts
+      WHERE status = 'active'
+      ORDER BY created_at DESC
+      LIMIT 60
+    `).all() as Array<{ id: string; text: string; thought_type: string; created_at: string }>;
+
+    if (thoughts.length < 2) return [];
+
+    const list = thoughts.map((t) =>
+      `- id: "${t.id}" | type: ${t.thought_type} | text: ${t.text.slice(0, 200)}`
+    ).join("\n");
+
+    const prompt = `You are reviewing a personal knowledge base for duplicate or superseded entries.
+
+Thoughts (most recent first):
+${list}
+
+Identify groups where one thought is a duplicate or outdated version of another. This includes:
+- Same person/entity captured multiple times (keep the most complete/recent)
+- Same URL saved twice
+- Near-identical text
+
+Only flag clear duplicates. Do NOT merge thoughts that are related but distinct.
+
+Respond with ONLY valid JSON:
+{
+  "groups": [
+    { "keep_id": "id-of-canonical", "supersede_ids": ["id-to-supersede"], "reason": "brief reason" }
+  ]
+}
+
+If no duplicates, respond: {"groups": []}`;
+
+    try {
+      const response = await this.llm.complete(
+        "You are a knowledge base curator. Respond with valid JSON only.",
+        prompt,
+      );
+      if (!response) return [];
+
+      const cleaned = GardenAgent.cleanJson(response);
+      const parsed = JSON.parse(cleaned) as {
+        groups: Array<{ keep_id: string; supersede_ids: string[]; reason: string }>;
+      };
+      if (!parsed.groups?.length) return [];
+
+      const validIds = new Set(thoughts.map((t) => t.id));
+      const actions: GardenAction[] = [];
+
+      for (const group of parsed.groups) {
+        if (!validIds.has(group.keep_id)) continue;
+        const toSupersede = group.supersede_ids.filter((id) => validIds.has(id) && id !== group.keep_id);
+        if (toSupersede.length === 0) continue;
+
+        for (const oldId of toSupersede) {
+          this.db.supersedeThought(oldId, group.keep_id);
+        }
+
+        actions.push({
+          type: "thought_dedup",
+          details: {
+            keep_id: group.keep_id,
+            supersede_ids: toSupersede,
+            reason: group.reason,
+          },
+          affected_ids: toSupersede,
+        });
+      }
+
+      return actions;
+    } catch (error) {
+      console.error("[gardener] Thought dedup failed:", error);
+      return [];
+    }
+  }
+
+  // ============================================
+  // Type-aware aging (pure SQL)
+  // ============================================
+
+  applyAgingRules(): GardenAction[] {
+    const raw = this.db.getRawDb();
+    const actions: GardenAction[] = [];
+
+    // Archive stale tasks (> 90 days, never or not recently surfaced)
+    const staleTasks = raw.prepare(`
+      SELECT id FROM thoughts
+      WHERE thought_type = 'task' AND status = 'active'
+        AND created_at < datetime('now', '-90 days')
+        AND (last_surfaced IS NULL OR last_surfaced < datetime('now', '-90 days'))
+    `).all() as Array<{ id: string }>;
+
+    for (const { id } of staleTasks) {
+      this.db.updateThought(id, { status: "archived" });
+      actions.push({ type: "age_archive", details: { thought_type: "task", reason: "stale >90d" }, affected_ids: [id] });
+    }
+
+    // Archive old expenses (> 7 years)
+    const oldExpenses = raw.prepare(`
+      SELECT id FROM thoughts
+      WHERE thought_type = 'expense' AND status = 'active'
+        AND created_at < datetime('now', '-7 years')
+    `).all() as Array<{ id: string }>;
+
+    for (const { id } of oldExpenses) {
+      this.db.updateThought(id, { status: "archived" });
+      actions.push({ type: "age_archive", details: { thought_type: "expense", reason: "stale >7y" }, affected_ids: [id] });
+    }
+
+    // Flag unread references (> 30 days, never surfaced)
+    const staleRefs = raw.prepare(`
+      SELECT id FROM thoughts
+      WHERE thought_type = 'reference' AND status = 'active'
+        AND created_at < datetime('now', '-30 days')
+        AND last_surfaced IS NULL
+    `).all() as Array<{ id: string }>;
+
+    for (const { id } of staleRefs) {
+      this._flagThought(id, "needs_review");
+      actions.push({ type: "age_flag", details: { thought_type: "reference", flag: "needs_review", reason: "unread >30d" }, affected_ids: [id] });
+    }
+
+    // Flag old notes/ideas/reflections with no topics and never surfaced (> 2 years)
+    const staleNotes = raw.prepare(`
+      SELECT id FROM thoughts
+      WHERE thought_type IN ('note','idea','reflection') AND status = 'active'
+        AND created_at < datetime('now', '-2 years')
+        AND auto_topics IS NULL
+        AND last_surfaced IS NULL
+    `).all() as Array<{ id: string }>;
+
+    for (const { id } of staleNotes) {
+      this._flagThought(id, "needs_review");
+      actions.push({ type: "age_flag", details: { thought_type: "note/idea/reflection", flag: "needs_review", reason: "untopiced >2y" }, affected_ids: [id] });
+    }
+
+    // Flag contracts expiring within 30 days
+    const expiringContracts = raw.prepare(`
+      SELECT id FROM thoughts
+      WHERE thought_type = 'contract' AND status = 'active'
+        AND JSON_EXTRACT(metadata, '$.expiry_date') IS NOT NULL
+        AND datetime(JSON_EXTRACT(metadata, '$.expiry_date')) > datetime('now')
+        AND datetime(JSON_EXTRACT(metadata, '$.expiry_date')) < datetime('now', '+30 days')
+    `).all() as Array<{ id: string }>;
+
+    for (const { id } of expiringContracts) {
+      this._flagThought(id, "expiry_soon");
+      actions.push({ type: "age_flag", details: { thought_type: "contract", flag: "expiry_soon", reason: "expires <30d" }, affected_ids: [id] });
+    }
+
+    // Flag insurance expiring within 60 days
+    const expiringInsurance = raw.prepare(`
+      SELECT id FROM thoughts
+      WHERE thought_type = 'insurance' AND status = 'active'
+        AND JSON_EXTRACT(metadata, '$.expiry_date') IS NOT NULL
+        AND datetime(JSON_EXTRACT(metadata, '$.expiry_date')) > datetime('now')
+        AND datetime(JSON_EXTRACT(metadata, '$.expiry_date')) < datetime('now', '+60 days')
+    `).all() as Array<{ id: string }>;
+
+    for (const { id } of expiringInsurance) {
+      this._flagThought(id, "expiry_soon");
+      actions.push({ type: "age_flag", details: { thought_type: "insurance", flag: "expiry_soon", reason: "expires <60d" }, affected_ids: [id] });
+    }
+
+    return actions;
+  }
+
+  private _flagThought(id: string, flag: string): void {
+    // JSON_SET merges the flag into existing metadata without a pre-read round-trip.
+    this.db.getRawDb().prepare(
+      "UPDATE thoughts SET metadata = JSON_SET(COALESCE(metadata, '{}'), ?, true) WHERE id = ?"
+    ).run(`$.${flag}`, id);
+  }
+
+  // ============================================
   // Digest thought capture
   // ============================================
 
@@ -365,6 +554,12 @@ If no near-duplicates exist, respond with: {"groups": []}`;
       parts.push(`tagged ${summary.thoughts_tagged} thought(s)`);
     if (summary.life_areas_assigned > 0)
       parts.push(`assigned ${summary.life_areas_assigned} life area(s)`);
+    if (summary.thoughts_deduped > 0)
+      parts.push(`deduped ${summary.thoughts_deduped} thought(s)`);
+    if (summary.thoughts_archived > 0)
+      parts.push(`archived ${summary.thoughts_archived} thought(s)`);
+    if (summary.thoughts_flagged > 0)
+      parts.push(`flagged ${summary.thoughts_flagged} thought(s) for review`);
 
     if (parts.length === 0) return;
 
@@ -424,6 +619,18 @@ If no near-duplicates exist, respond with: {"groups": []}`;
       skippedSteps.push("consolidate (no LLM available)");
     }
 
+    // Step 7: LLM thought deduplication
+    if (this.llm) {
+      const thoughtDedupActions = await this.deduplicateThoughts();
+      allActions.push(...thoughtDedupActions);
+    } else {
+      skippedSteps.push("thought_dedup (no LLM available)");
+    }
+
+    // Step 8: Type-aware aging (no LLM needed)
+    const agingActions = this.applyAgingRules();
+    allActions.push(...agingActions);
+
     const completedAt = new Date().toISOString();
 
     const result: GardenResult = {
@@ -441,6 +648,11 @@ If no near-duplicates exist, respond with: {"groups": []}`;
         thoughts_tagged: allActions
           .filter((a) => a.type === "retroactive_tag")
           .reduce((sum, a) => sum + ((a.details.thoughts_tagged as number) || 0), 0),
+        thoughts_deduped: allActions
+          .filter((a) => a.type === "thought_dedup")
+          .reduce((sum, a) => sum + ((a.details.supersede_ids as string[])?.length || 0), 0),
+        thoughts_archived: allActions.filter((a) => a.type === "age_archive").length,
+        thoughts_flagged: allActions.filter((a) => a.type === "age_flag").length,
         skipped_steps: skippedSteps,
       },
     };

@@ -7,7 +7,10 @@ export interface GardenAction {
     | "auto_approve"
     | "auto_assign_topic"
     | "auto_assign_life_area"
-    | "retroactive_tag";
+    | "retroactive_tag"
+    | "thought_dedup"
+    | "age_archive"
+    | "age_flag";
   details: Record<string, unknown>;
   affected_ids: string[];
 }
@@ -23,6 +26,9 @@ export interface GardenResult {
     topics_approved: number;
     life_areas_assigned: number;
     thoughts_tagged: number;
+    thoughts_deduped: number;
+    thoughts_archived: number;
+    thoughts_flagged: number;
     skipped_steps: string[];
   };
 }
