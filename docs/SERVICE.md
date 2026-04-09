@@ -51,7 +51,7 @@ Open Brain can run standalone (with its own docker-compose including Ollama) or 
 
 17. **`OpenBrainDatabaseManager.initialized`** — The constructor runs migrations asynchronously via a stored promise. Any code that creates a fresh `OpenBrainDatabaseManager` (e.g., tests) must `await db.initialized` before calling any DB methods. In production the service starts up before handling traffic so this is not normally an issue.
 
-18. **Garden report thoughts are system-generated** — Thoughts with `source_channel='gardener'` are inserted directly by the gardener extension after each meaningful run. They are searchable and returned by default queries like any other thought, but are never classified or embedded by the normal pipeline. The gardener does not capture a digest thought on no-op runs (when no actions were taken).
+18. **Garden report thoughts are embedded and searchable** — Thoughts with `source_channel='gardener'` are captured via `ThoughtManager.capture()` so they get embedded by the normal pipeline and are findable via semantic search (e.g. "what did the gardener do?"). The gardener does not capture a digest thought on no-op runs (when no actions were taken). In tests, where ThoughtManager is not wired up, the fallback is `db.createThought()` (no embedding).
 
 ---
 
@@ -190,7 +190,12 @@ Rows in `vss_thoughts` are keyed by `thoughts._vss_rowid`. The `storeEmbedding()
 | `src/db/migrations/sql/001_init_schema.sql` | Initial schema: `thoughts` table, indexes, triggers |
 | `src/prompts/thought-classification.yaml` | Classification prompt template (PromptLoader, hot-reload) |
 | `src/ui/routes.ts` | UI routes (PWA chat page, static files, manifest, service worker) |
-| `src/ui/static/js/components/open-brain-chat.js` | Lit web component for PWA chat interface |
+| `src/ui/static/js/components/shared-styles.js` | Shared Lit CSS: design tokens, header, buttons, cards, states |
+| `src/ui/static/js/components/type-colors.js` | Shared thought type colour/label constants |
+| `src/ui/static/js/components/open-brain-chat.js` | Lit web component — PWA chat interface |
+| `src/ui/static/js/components/open-brain-browse.js` | Lit web component — thought browser |
+| `src/ui/static/js/components/open-brain-explore.js` | Lit web component — treemap explorer |
+| `src/ui/static/js/components/api-key-manager.js` | Lit web component — API key management |
 | `src/ui/static/sw.js` | Service worker (cache-first static, network-first API, offline queuing) |
 
 ---
@@ -475,9 +480,28 @@ VSS extensions are loaded from:
 
 ---
 
+## UI Pages
+
+Five Lit web component pages served under `/ui/`. All share a common design foundation via `shared-styles.js` (design tokens, header, buttons, cards, loading/empty/error states). New pages should import `sharedStyles` and build on top.
+
+| Page | URL | Component |
+|------|-----|-----------|
+| Chat (PWA) | `/ui/brain` | `<open-brain-chat>` |
+| Browse | `/ui/browse` | `<open-brain-browse>` |
+| Explore | `/ui/explore` | `<open-brain-explore>` |
+| Setup | `/ui/setup` | `<open-brain-setup>` |
+| API Keys | `/ui/keys` | `<api-key-manager>` |
+
+**Shared foundations** (`src/ui/static/js/components/`):
+- `shared-styles.js` — CSS custom properties (tokens), header, buttons, cards, form elements, loading/empty/error states. Import as `import { sharedStyles } from './shared-styles.js'` and add to `static styles = [sharedStyles, css\`...\`]`.
+- `type-colors.js` — `TYPE_COLORS`, `TYPE_LABELS`, `THOUGHT_TYPES` shared by browse and explore.
+- `auth-mixin.js` — API key helpers (`getApiKey`, `getAuthHeaders`, etc.)
+- `backup-indicator.js` — backup health dot used in all page headers.
+- `api-key-dialog.js` — reusable API key entry modal.
+
 ## PWA Chat Interface
 
-A standalone mobile-first chat page for capturing thoughts. URL is configurable: standalone at `/ui/brain`, P2B mode at `{BASE_PATH}/ui/brain` (e.g. `/open-brain/ui/brain` via Platform proxy). Installable as PWA on mobile home screen.
+The chat page (`/ui/brain`) is installable as a PWA. URL is configurable: standalone at `/ui/brain`, P2B mode at `{BASE_PATH}/ui/brain` (e.g. `/open-brain/ui/brain` via Platform proxy).
 
 | Attribute | Value |
 |-----------|-------|

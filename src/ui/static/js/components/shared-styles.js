@@ -1,7 +1,7 @@
 // Open Brain — Shared Lit CSS
 // Import this in every component: static styles = [sharedStyles, css`/* local */`];
 
-import { css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
 // Defined on :host so they cascade into shadow DOM.
@@ -46,7 +46,7 @@ export const tokens = css`
 `;
 
 // ─── Page header ────────────────────────────────────────────────────────────
-export const headerStyles = css`
+const headerStyles = css`
   .header {
     display: flex;
     align-items: center;
@@ -73,7 +73,7 @@ export const headerStyles = css`
 `;
 
 // ─── Status dot (online / offline) ──────────────────────────────────────────
-export const statusDotStyles = css`
+const statusDotStyles = css`
   .status-dot {
     width: 8px;
     height: 8px;
@@ -93,7 +93,7 @@ export const statusDotStyles = css`
 `;
 
 // ─── Buttons ────────────────────────────────────────────────────────────────
-export const buttonStyles = css`
+const buttonStyles = css`
   .btn {
     display: inline-flex;
     align-items: center;
@@ -139,7 +139,7 @@ export const buttonStyles = css`
 `;
 
 // ─── Cards ──────────────────────────────────────────────────────────────────
-export const cardStyles = css`
+const cardStyles = css`
   .card {
     background: var(--bg-card);
     border-radius: var(--radius-md);
@@ -149,7 +149,7 @@ export const cardStyles = css`
 `;
 
 // ─── Form elements ──────────────────────────────────────────────────────────
-export const formStyles = css`
+const formStyles = css`
   .form-label {
     display: block;
     font-size: 11px;
@@ -191,7 +191,7 @@ export const formStyles = css`
 `;
 
 // ─── Loading / empty / error states ─────────────────────────────────────────
-export const stateStyles = css`
+const stateStyles = css`
   .loading {
     display: flex;
     align-items: center;

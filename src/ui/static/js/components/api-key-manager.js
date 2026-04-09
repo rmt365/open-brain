@@ -1,7 +1,7 @@
 // Open Brain - API Key Manager Page
 // Admin interface for creating, viewing, and managing API keys
 
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { sharedStyles } from './shared-styles.js';
 import './api-key-dialog.js';
 import { getApiKey, hasApiKey, getAuthHeaders } from './auth-mixin.js';

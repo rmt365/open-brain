@@ -1,7 +1,7 @@
 // Open Brain - Shared API Key Dialog Component
 // Reusable dialog for entering/managing the API key across all pages
 
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { tokens } from './shared-styles.js';
 import { getApiKey, setApiKey, clearApiKey } from './auth-mixin.js';
 

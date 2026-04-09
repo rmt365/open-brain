@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { tokens } from './shared-styles.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
@@ -50,13 +50,13 @@ class BackupIndicator extends LitElement {
       flex-shrink: 0;
     }
 
-    .backup-badge.healthy .dot { background: #22c55e; }
-    .backup-badge.warning .dot { background: #f59e0b; }
-    .backup-badge.error .dot { background: #ef4444; }
-    .backup-badge.disabled .dot { background: #64748b; }
+    .backup-badge.healthy .dot { background: var(--color-success); }
+    .backup-badge.warning .dot { background: var(--color-warning); }
+    .backup-badge.error .dot { background: var(--color-danger); }
+    .backup-badge.disabled .dot { background: var(--text-muted); }
 
     .backup-badge .label {
-      color: #64748b;
+      color: var(--text-muted);
       white-space: nowrap;
     }
 

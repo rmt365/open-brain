@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { sharedStyles } from './shared-styles.js';
 import { TYPE_COLORS, TYPE_LABELS, THOUGHT_TYPES } from './type-colors.js';
 import './backup-indicator.js';
@@ -31,7 +31,6 @@ class OpenBrainBrowse extends LitElement {
       --card-bg: var(--bg-card);
       --input-bg: var(--bg-input);
       --input-border: var(--border);
-      --header-bg: var(--bg-header);
     }
 
     .controls {

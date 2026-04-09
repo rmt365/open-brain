@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
 import { sharedStyles } from './shared-styles.js';
 import { TYPE_COLORS } from './type-colors.js';
 import { hierarchy, treemap, treemapSquarify } from 'https://cdn.jsdelivr.net/npm/d3-hierarchy@3/+esm';
