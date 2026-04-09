@@ -5,7 +5,7 @@ import { createGardenerRoutes } from "./routes.ts";
 import { GardenAgent } from "./logic.ts";
 
 export default function register(ctx: ExtensionContext): ExtensionRegistration {
-  const agent = new GardenAgent(ctx.db, ctx.config.llm.provider);
+  const agent = new GardenAgent(ctx.db, ctx.config.llm.provider, ctx.thoughtManager);
 
   // Schedule full garden run daily at 3 AM
   try {

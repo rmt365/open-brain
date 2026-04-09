@@ -30,10 +30,10 @@ export class OpenBrainServer {
   private config: ServiceConfig;
   private thoughtManager: ThoughtManager;
 
-  constructor(dbManager: OpenBrainDatabaseManager, config: ServiceConfig) {
+  constructor(dbManager: OpenBrainDatabaseManager, config: ServiceConfig, thoughtManager?: ThoughtManager) {
     this.dbManager = dbManager;
     this.config = config;
-    this.thoughtManager = new ThoughtManager(dbManager, config);
+    this.thoughtManager = thoughtManager ?? new ThoughtManager(dbManager, config);
     this.app = new Hono();
     this.app.onError(globalErrorHandler);
     this.setupMiddleware();

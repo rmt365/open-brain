@@ -3,6 +3,7 @@
 
 import type { OpenBrainDatabaseManager } from "../../db/openBrainDatabaseManager.ts";
 import type { LLMProvider } from "../../logic/llm/types.ts";
+import type { ThoughtManager } from "../../logic/thoughts.ts";
 import type { GardenAction, GardenResult } from "./types.ts";
 
 interface ConsolidationGroup {
@@ -14,10 +15,12 @@ interface ConsolidationGroup {
 export class GardenAgent {
   private db: OpenBrainDatabaseManager;
   private llm: LLMProvider | null;
+  private thoughtManager: ThoughtManager | null;
 
-  constructor(db: OpenBrainDatabaseManager, llm?: LLMProvider | null) {
+  constructor(db: OpenBrainDatabaseManager, llm?: LLMProvider | null, thoughtManager?: ThoughtManager | null) {
     this.db = db;
     this.llm = llm ?? null;
+    this.thoughtManager = thoughtManager ?? null;
   }
 
   // LLM responses sometimes wrap JSON in markdown fences — strip them.
@@ -564,12 +567,17 @@ If no duplicates, respond: {"groups": []}`;
     if (parts.length === 0) return;
 
     const text = `Gardener report: ${parts.join(", ")}.`;
-    this.db.createThought({
-      text,
-      thought_type: "note",
-      source_channel: "gardener",
-      life_area: "meta",
-    });
+    if (this.thoughtManager) {
+      // Capture via ThoughtManager so the thought gets embedded and is searchable
+      this.thoughtManager.capture(text, "gardener", undefined, "note", undefined, "meta");
+    } else {
+      this.db.createThought({
+        text,
+        thought_type: "note",
+        source_channel: "gardener",
+        life_area: "meta",
+      });
+    }
   }
 
   // ============================================

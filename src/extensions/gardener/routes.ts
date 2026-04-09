@@ -6,7 +6,7 @@ import { GardenAgent } from "./logic.ts";
 
 export function createGardenerRoutes(ctx: ExtensionContext): Hono {
   const router = new Hono();
-  const agent = new GardenAgent(ctx.db, ctx.config.llm.provider);
+  const agent = new GardenAgent(ctx.db, ctx.config.llm.provider, ctx.thoughtManager);
 
   // POST /ext/gardener/run — full garden run
   // Query param ?dry_run=true for preview
