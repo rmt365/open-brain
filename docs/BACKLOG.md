@@ -37,10 +37,11 @@ Deno-based Telegram bot using grammY. Captures text messages as thoughts, suppor
 | Field | Value |
 |-------|-------|
 | **ID** | OB-017 |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | critical |
+| **Completed** | Apr 9, 2026 |
 
-**Rationale:** Robin's brain has 140 unapproved topic suggestions creating a "(no topic)" bottleneck. The treemap visualization is hollow without organized topics. This unblocks the explore page, search quality, and overall usability. See full spec below in Proposed section.
+Topic gardener built and running daily at 03:00 UTC: auto-approves high-frequency suggestions, deduplicates near-duplicates (LLM + exact name), assigns life areas via voting + LLM fallback, retroactively tags thoughts. Captures a digest thought after each meaningful run (searchable via brain chat). Explore page shows gardener status strip with last run time, pending count, and "Run now" button.
 
 **Next up:** OB-018 (User-Configurable Life Areas + Onboarding) — needed before Tina starts using her brain instance.
 

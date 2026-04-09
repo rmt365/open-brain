@@ -51,6 +51,8 @@ Open Brain can run standalone (with its own docker-compose including Ollama) or 
 
 17. **`OpenBrainDatabaseManager.initialized`** — The constructor runs migrations asynchronously via a stored promise. Any code that creates a fresh `OpenBrainDatabaseManager` (e.g., tests) must `await db.initialized` before calling any DB methods. In production the service starts up before handling traffic so this is not normally an issue.
 
+18. **Garden report thoughts are system-generated** — Thoughts with `source_channel='gardener'` are inserted directly by the gardener extension after each meaningful run. They are searchable and returned by default queries like any other thought, but are never classified or embedded by the normal pipeline. The gardener does not capture a digest thought on no-op runs (when no actions were taken).
+
 ---
 
 ## API Tools

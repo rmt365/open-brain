@@ -351,6 +351,33 @@ If no near-duplicates exist, respond with: {"groups": []}`;
   }
 
   // ============================================
+  // Digest thought capture
+  // ============================================
+
+  private captureDigestThought(result: GardenResult): void {
+    const { summary } = result;
+    const parts: string[] = [];
+    if (summary.topics_approved > 0)
+      parts.push(`approved ${summary.topics_approved} topic(s)`);
+    if (summary.duplicates_merged > 0)
+      parts.push(`merged ${summary.duplicates_merged} duplicate(s)`);
+    if (summary.thoughts_tagged > 0)
+      parts.push(`tagged ${summary.thoughts_tagged} thought(s)`);
+    if (summary.life_areas_assigned > 0)
+      parts.push(`assigned ${summary.life_areas_assigned} life area(s)`);
+
+    if (parts.length === 0) return;
+
+    const text = `Gardener report: ${parts.join(", ")}.`;
+    this.db.createThought({
+      text,
+      thought_type: "note",
+      source_channel: "gardener",
+      life_area: "meta",
+    });
+  }
+
+  // ============================================
   // Full garden run
   // ============================================
 
@@ -399,19 +426,7 @@ If no near-duplicates exist, respond with: {"groups": []}`;
 
     const completedAt = new Date().toISOString();
 
-    // Log actions to the garden_actions table (unless dry run)
-    if (!dryRun) {
-      for (const action of allActions) {
-        this.db.logGardenAction(
-          runId,
-          action.type,
-          action.details,
-          action.affected_ids,
-        );
-      }
-    }
-
-    return {
+    const result: GardenResult = {
       run_id: runId,
       started_at: startedAt,
       completed_at: completedAt,
@@ -429,5 +444,20 @@ If no near-duplicates exist, respond with: {"groups": []}`;
         skipped_steps: skippedSteps,
       },
     };
+
+    // Log actions and capture digest thought (unless dry run)
+    if (!dryRun) {
+      for (const action of allActions) {
+        this.db.logGardenAction(
+          runId,
+          action.type,
+          action.details,
+          action.affected_ids,
+        );
+      }
+      this.captureDigestThought(result);
+    }
+
+    return result;
   }
 }

@@ -28,7 +28,8 @@ export type SourceChannel =
   | "mcp"
   | "chat"
   | "import"
-  | "telegram";
+  | "telegram"
+  | "gardener";
 
 export type ThoughtStatus =
   | "active"

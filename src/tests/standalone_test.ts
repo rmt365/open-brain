@@ -1,10 +1,11 @@
 // Open Brain - Standalone Service Behavior Tests
-// Tests LLM factory, classifier, auth middleware, config, embeddings, and supersession
+// Tests LLM factory, classifier, auth middleware, config, embeddings, supersession, and gardener
 
 import {
   assertEquals,
   assertExists,
   assertNotEquals,
+  assertStringIncludes,
 } from "@std/assert";
 import { Hono } from "@hono/hono";
 
@@ -17,6 +18,7 @@ import { createAuthMiddleware } from "../middleware/auth.ts";
 import { readRawConfig } from "../config.ts";
 import { generateEmbedding } from "../logic/embeddings.ts";
 import { OpenBrainDatabaseManager } from "../db/openBrainDatabaseManager.ts";
+import { GardenAgent } from "../extensions/gardener/logic.ts";
 
 // =============================================
 // Mock LLM Provider
@@ -825,5 +827,56 @@ Deno.test("supersession: listThoughts with explicit status=superseded returns su
     const { thoughts } = db.listThoughts({ status: "superseded" });
     assertEquals(thoughts.length, 1);
     assertEquals(thoughts[0].id, v1.id);
+  })
+);
+
+// =============================================
+// Gardener Digest Tests
+// =============================================
+
+function withGardenDb<T>(fn: (db: OpenBrainDatabaseManager) => Promise<T> | T): Promise<T> {
+  return withTempDb((db) => {
+    // Create garden_actions table (normally run as extension migration)
+    db.getRawDb().prepare(`
+      CREATE TABLE IF NOT EXISTS garden_actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        details TEXT NOT NULL,
+        affected_ids TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    return fn(db);
+  });
+}
+
+Deno.test("GardenAgent digest: captures thought when gardener approves topics", { sanitizeResources: false, sanitizeOps: false }, () =>
+  withGardenDb(async (db) => {
+    // Two thoughts with matching auto_topics
+    const t1 = db.createThought({ text: "Thought one", source_channel: "api" });
+    const t2 = db.createThought({ text: "Thought two", source_channel: "api" });
+    db.getRawDb().prepare("UPDATE thoughts SET auto_topics = ? WHERE id = ?").run('["test-topic"]', t1.id);
+    db.getRawDb().prepare("UPDATE thoughts SET auto_topics = ? WHERE id = ?").run('["test-topic"]', t2.id);
+    db.getRawDb().prepare("INSERT INTO suggested_topics (name, status) VALUES (?, 'pending')").run("test-topic");
+
+    const agent = new GardenAgent(db, null);
+    const result = await agent.runFull(false);
+
+    assertEquals(result.summary.topics_approved, 1);
+
+    const { thoughts } = db.listThoughts({ source_channel: "gardener" });
+    assertEquals(thoughts.length, 1);
+    assertStringIncludes(thoughts[0].text, "Gardener report");
+  })
+);
+
+Deno.test("GardenAgent digest: skips thought capture on no-op run", { sanitizeResources: false, sanitizeOps: false }, () =>
+  withGardenDb(async (db) => {
+    const agent = new GardenAgent(db, null);
+    await agent.runFull(false);
+
+    const { thoughts } = db.listThoughts({ source_channel: "gardener" });
+    assertEquals(thoughts.length, 0);
   })
 );

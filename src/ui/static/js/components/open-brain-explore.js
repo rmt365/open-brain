@@ -44,6 +44,8 @@ class OpenBrainExplore extends LitElement {
     _areaColors: { type: Object, state: true },
     _online: { type: Boolean, state: true },
     _showApiKeyDialog: { type: Boolean, state: true },
+    _gardenerStatus: { type: Object, state: true },
+    _gardenerRunning: { type: Boolean, state: true },
   };
 
   static styles = css`
@@ -347,6 +349,33 @@ class OpenBrainExplore extends LitElement {
       padding: 3px 6px;
     }
 
+    .gardener-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-top: 1px solid rgba(129, 140, 248, 0.1);
+      background: rgba(15, 14, 26, 0.6);
+      font-size: 12px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .gardener-strip span { flex: 1; }
+
+    .btn-garden-run {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(129, 140, 248, 0.3);
+      background: rgba(129, 140, 248, 0.08);
+      color: var(--accent);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-garden-run:hover { background: rgba(129, 140, 248, 0.15); }
+    .btn-garden-run:disabled { opacity: 0.5; cursor: default; }
+
     .empty-state {
       text-align: center;
       padding: 60px 20px;
@@ -377,6 +406,8 @@ class OpenBrainExplore extends LitElement {
     this._lifeAreas = [];
     this._areaColors = { unclassified: DEFAULT_UNCLASSIFIED_COLOR };
     this._online = navigator.onLine;
+    this._gardenerStatus = null;
+    this._gardenerRunning = false;
   }
 
   connectedCallback() {
@@ -385,6 +416,7 @@ class OpenBrainExplore extends LitElement {
     this._loadLifeAreas();
     this._loadBreakdown();
     this._loadSuggestions();
+    this._loadGardenerStatus();
     window.addEventListener('popstate', this._handlePopState);
     this._onOnline = () => { this._online = true; };
     this._onOffline = () => { this._online = false; };
@@ -809,11 +841,58 @@ class OpenBrainExplore extends LitElement {
     `;
   }
 
+  async _loadGardenerStatus() {
+    try {
+      const res = await fetch(`${BASE_PATH}/ext/gardener/status`, { headers: this._getHeaders() });
+      if (res.ok) {
+        const json = await res.json();
+        this._gardenerStatus = json.data;
+      }
+    } catch { /* silent */ }
+  }
+
+  async _runGardener() {
+    if (this._gardenerRunning) return;
+    this._gardenerRunning = true;
+    try {
+      await fetch(`${BASE_PATH}/ext/gardener/run`, { method: 'POST', headers: this._getHeaders() });
+      await Promise.all([this._loadGardenerStatus(), this._loadSuggestions(), this._loadBreakdown()]);
+    } catch (e) {
+      console.error('[gardener] Run failed:', e);
+    } finally {
+      this._gardenerRunning = false;
+    }
+  }
+
+  _formatRelativeTime(dateStr) {
+    if (!dateStr) return 'never';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return `${Math.floor(diff / 86400000)}d ago`;
+  }
+
+  _renderGardenerStrip() {
+    if (!this._gardenerStatus) return '';
+    const lastRun = this._gardenerStatus.last_run?.created_at;
+    const pending = this._gardenerStatus.pending_suggestion_count ?? 0;
+    return html`
+      <div class="gardener-strip">
+        <span>Gardener · last run ${this._formatRelativeTime(lastRun)} · ${pending} pending</span>
+        <button class="btn-garden-run" ?disabled=${this._gardenerRunning} @click=${this._runGardener}>
+          ${this._gardenerRunning ? 'Running…' : 'Run now'}
+        </button>
+      </div>
+    `;
+  }
+
   _onApiKeyChanged() {
     this._showApiKeyDialog = false;
     this._loadLifeAreas();
     this._loadBreakdown();
     this._loadSuggestions();
+    this._loadGardenerStatus();
   }
 
   render() {
@@ -846,6 +925,7 @@ class OpenBrainExplore extends LitElement {
         ${this._viewLevel === 'topic' ? this._renderThoughtList() : ''}
       </div>
 
+      ${this._renderGardenerStrip()}
       ${this._renderTriage()}
     `;
   }
