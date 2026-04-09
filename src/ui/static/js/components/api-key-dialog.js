@@ -2,6 +2,7 @@
 // Reusable dialog for entering/managing the API key across all pages
 
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { tokens } from './shared-styles.js';
 import { getApiKey, setApiKey, clearApiKey } from './auth-mixin.js';
 
 class ApiKeyDialog extends LitElement {
@@ -10,10 +11,8 @@ class ApiKeyDialog extends LitElement {
     required: { type: Boolean },
   };
 
-  static styles = css`
-    :host {
-      display: contents;
-    }
+  static styles = [tokens, css`
+    :host { display: contents; }
 
     .overlay {
       position: fixed;
@@ -27,86 +26,51 @@ class ApiKeyDialog extends LitElement {
     }
 
     .dialog {
-      background: #1e1b4b;
-      border-radius: 16px;
+      background: var(--bg-header);
+      border-radius: var(--radius-lg);
       padding: 24px;
       max-width: 360px;
       width: 100%;
     }
 
-    .dialog h3 {
-      margin: 0 0 8px;
-      font-size: 16px;
-      color: #e2e8f0;
-    }
-
-    .dialog p {
-      margin: 0 0 16px;
-      font-size: 13px;
-      color: #94a3b8;
-      line-height: 1.5;
-    }
+    .dialog h3 { margin: 0 0 8px; font-size: 16px; color: var(--text-primary); }
+    .dialog p  { margin: 0 0 16px; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
 
     .dialog input {
       width: 100%;
       box-sizing: border-box;
       background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
       padding: 10px 12px;
-      color: #e2e8f0;
+      color: var(--text-primary);
       font-size: 14px;
       font-family: monospace;
       outline: none;
       margin-bottom: 16px;
     }
+    .dialog input:focus { border-color: var(--accent); }
 
-    .dialog input:focus {
-      border-color: #818cf8;
-    }
-
-    .btn-row {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
+    .btn-row { display: flex; gap: 8px; justify-content: flex-end; }
 
     button {
       padding: 8px 16px;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       border: none;
       font-size: 14px;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: background 0.15s;
     }
 
-    .btn-primary {
-      background: #6366f1;
-      color: white;
-    }
+    .btn-primary { background: var(--accent-deep); color: white; }
+    .btn-primary:hover { background: #4f46e5; }
 
-    .btn-primary:hover {
-      background: #4f46e5;
-    }
+    .btn-secondary { background: var(--bg-hover); color: var(--text-secondary); }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
 
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.1);
-      color: #cbd5e1;
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.15);
-    }
-
-    .btn-danger {
-      background: rgba(239, 68, 68, 0.2);
-      color: #fca5a5;
-    }
-
-    .btn-danger:hover {
-      background: rgba(239, 68, 68, 0.3);
-    }
-  `;
+    .btn-danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+  `];
 
   constructor() {
     super();

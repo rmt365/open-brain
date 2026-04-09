@@ -2,6 +2,7 @@
 // Admin interface for creating, viewing, and managing API keys
 
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { sharedStyles } from './shared-styles.js';
 import './api-key-dialog.js';
 import { getApiKey, hasApiKey, getAuthHeaders } from './auth-mixin.js';
 
@@ -34,36 +35,11 @@ class ApiKeyManager extends LitElement {
     _copied: { type: Boolean, state: true },
   };
 
-  static styles = css`
+  static styles = [sharedStyles, css`
     :host {
       display: block;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #e2e8f0;
-      background: #0f0e1a;
+      background: var(--bg-page);
       min-height: 100dvh;
-    }
-
-    .header {
-      background: #1e1b4b;
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .header-icon { font-size: 22px; }
-    .header-title { font-size: 16px; font-weight: 600; flex: 1; }
-
-    .header-nav-link {
-      text-decoration: none;
-      font-size: 18px;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: background 0.2s;
-    }
-
-    .header-nav-link:hover {
-      background: rgba(255, 255, 255, 0.1);
     }
 
     .content {
@@ -176,20 +152,6 @@ class ApiKeyManager extends LitElement {
       color: #fca5a5;
     }
 
-    .delete-btn {
-      padding: 6px 12px;
-      border-radius: 6px;
-      border: none;
-      font-size: 12px;
-      cursor: pointer;
-      background: rgba(239, 68, 68, 0.1);
-      color: #f87171;
-    }
-
-    .delete-btn:hover {
-      background: rgba(239, 68, 68, 0.2);
-    }
-
     .disabled-overlay {
       opacity: 0.5;
     }
@@ -202,52 +164,12 @@ class ApiKeyManager extends LitElement {
     }
 
     /* Create form */
-    .create-btn {
-      background: #6366f1;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-size: 14px;
-      cursor: pointer;
-      margin-bottom: 20px;
-    }
-
-    .create-btn:hover {
-      background: #4f46e5;
-    }
-
     .create-form {
       background: rgba(99, 102, 241, 0.08);
       border: 1px solid rgba(99, 102, 241, 0.2);
       border-radius: 10px;
       padding: 20px;
       margin-bottom: 24px;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 13px;
-      color: #94a3b8;
-      margin-bottom: 6px;
-      font-weight: 500;
-    }
-
-    .form-input {
-      width: 100%;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 10px 12px;
-      color: #e2e8f0;
-      font-size: 14px;
-      outline: none;
-      margin-bottom: 16px;
-      box-sizing: border-box;
-    }
-
-    .form-input:focus {
-      border-color: #818cf8;
     }
 
     .scope-checkboxes {
@@ -273,16 +195,6 @@ class ApiKeyManager extends LitElement {
     .form-actions {
       display: flex;
       gap: 8px;
-    }
-
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.1);
-      color: #cbd5e1;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 14px;
-      cursor: pointer;
     }
 
     /* Created key display */
@@ -338,18 +250,7 @@ class ApiKeyManager extends LitElement {
       background: #4f46e5;
     }
 
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #64748b;
-    }
-
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: #64748b;
-    }
-  `;
+  `];
 
   constructor() {
     super();
@@ -516,10 +417,10 @@ class ApiKeyManager extends LitElement {
             ${isDisabled ? 'Enable' : 'Disable'}
           </button>
           ${this._deleteConfirm === key.id ? html`
-            <button class="delete-btn" @click=${() => this._deleteKey(key.id)}>Confirm Delete</button>
-            <button class="btn-secondary" @click=${() => { this._deleteConfirm = ''; }}>Cancel</button>
+            <button class="btn btn-danger" @click=${() => this._deleteKey(key.id)}>Confirm Delete</button>
+            <button class="btn btn-secondary" @click=${() => { this._deleteConfirm = ''; }}>Cancel</button>
           ` : html`
-            <button class="delete-btn" @click=${() => { this._deleteConfirm = key.id; }}>Delete</button>
+            <button class="btn btn-danger" @click=${() => { this._deleteConfirm = key.id; }}>Delete</button>
           `}
         </div>
       </div>
@@ -569,7 +470,7 @@ class ApiKeyManager extends LitElement {
                 </button>
               </div>
               <div style="margin-top: 12px;">
-                <button class="btn-secondary" @click=${() => { this._createdKey = ''; }}>Dismiss</button>
+                <button class="btn btn-secondary" @click=${() => { this._createdKey = ''; }}>Dismiss</button>
               </div>
             </div>
           ` : ''}
@@ -601,15 +502,15 @@ class ApiKeyManager extends LitElement {
               </div>
 
               <div class="form-actions">
-                <button class="create-btn" @click=${this._createKey}>Create Key</button>
-                <button class="btn-secondary" @click=${() => { this._showCreate = false; }}>Cancel</button>
+                <button class="btn btn-primary" @click=${this._createKey}>Create Key</button>
+                <button class="btn btn-secondary" @click=${() => { this._showCreate = false; }}>Cancel</button>
               </div>
             </div>
           ` : html`
-            <button class="create-btn" @click=${() => { this._showCreate = true; }}>+ Create API Key</button>
+            <button class="btn btn-primary" @click=${() => { this._showCreate = true; }}>+ Create API Key</button>
           `}
 
-          ${this._error ? html`<div style="color: #f87171; margin-bottom: 16px;">${this._error}</div>` : ''}
+          ${this._error ? html`<div class="error-msg">${this._error}</div>` : ''}
 
           <h2 class="section-title">API Keys (${this._keys.length})</h2>
 

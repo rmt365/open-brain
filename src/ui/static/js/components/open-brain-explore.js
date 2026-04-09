@@ -1,4 +1,6 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { sharedStyles } from './shared-styles.js';
+import { TYPE_COLORS } from './type-colors.js';
 import { hierarchy, treemap, treemapSquarify } from 'https://cdn.jsdelivr.net/npm/d3-hierarchy@3/+esm';
 import './backup-indicator.js';
 import './api-key-dialog.js';
@@ -6,25 +8,8 @@ import { hasApiKey, getAuthHeaders } from './auth-mixin.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
-// AREA_COLORS is now built dynamically from the API response
+// AREA_COLORS is built dynamically from the API response
 const DEFAULT_UNCLASSIFIED_COLOR = '#475569';
-
-const TYPE_COLORS = {
-  reference: '#818cf8',
-  idea: '#60a5fa',
-  task: '#f59e0b',
-  note: '#94a3b8',
-  observation: '#22c55e',
-  question: '#06b6d4',
-  decision: '#a855f7',
-  reflection: '#ec4899',
-  expense: '#f97316',
-  contract: '#14b8a6',
-  maintenance: '#84cc16',
-  insurance: '#0ea5e9',
-  event: '#fb7185',
-  person: '#10b981',
-};
 
 
 class OpenBrainExplore extends LitElement {
@@ -48,66 +33,14 @@ class OpenBrainExplore extends LitElement {
     _gardenerRunning: { type: Boolean, state: true },
   };
 
-  static styles = css`
+  static styles = [sharedStyles, css`
     :host {
       display: flex;
       flex-direction: column;
       height: 100dvh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #e2e8f0;
-      background: #0f0e1a;
-      --header-bg: #1e1b4b;
-      --accent: #818cf8;
-      --system-bubble: #1e293b;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --input-border: #312e81;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 16px;
-      background: var(--header-bg);
-      border-bottom: 1px solid rgba(129, 140, 248, 0.15);
-      flex-shrink: 0;
-      padding-top: calc(14px + env(safe-area-inset-top, 0px));
-    }
-
-    .header-icon { font-size: 22px; }
-    .header-title {
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--text-primary);
-      flex: 1;
-    }
-
-    .header-nav-link {
-      font-size: 20px;
-      text-decoration: none;
-      opacity: 0.6;
-      transition: opacity 0.15s;
-      padding: 4px;
-    }
-    .header-nav-link:hover { opacity: 1; }
-
-    .header-status {
-      font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
-    }
-    .status-dot.offline {
-      background: #ef4444;
+      background: var(--bg-page);
+      --header-bg: var(--bg-header);
+      --input-border: var(--border);
     }
 
     .breadcrumb {
@@ -376,19 +309,7 @@ class OpenBrainExplore extends LitElement {
     .btn-garden-run:hover { background: rgba(129, 140, 248, 0.15); }
     .btn-garden-run:disabled { opacity: 0.5; cursor: default; }
 
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: var(--text-muted);
-    }
-  `;
+  `];
 
   constructor() {
     super();

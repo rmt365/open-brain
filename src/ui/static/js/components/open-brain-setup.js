@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { sharedStyles } from './shared-styles.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -9,43 +10,14 @@ class OpenBrainSetup extends LitElement {
     _copied: { type: String, state: true },
   };
 
-  static styles = css`
+  static styles = [sharedStyles, css`
     :host {
       display: flex;
       flex-direction: column;
       height: 100dvh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #e2e8f0;
-      background: #0f0e1a;
-      --header-bg: #1e1b4b;
-      --accent: #818cf8;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --card-bg: #1e293b;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      padding: 12px 16px;
-      background: var(--header-bg);
-      gap: 10px;
-      flex-shrink: 0;
-    }
-    .header-icon { font-size: 24px; }
-    .header-title { font-size: 16px; font-weight: 600; flex: 1; }
-    .header-nav-link {
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 18px;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: background 0.15s;
-    }
-    .header-nav-link:hover {
-      background: rgba(255,255,255,0.1);
-      color: var(--text-primary);
+      background: var(--bg-page);
+      --card-bg: var(--bg-card);
+      --header-bg: var(--bg-header);
     }
 
     .content {
@@ -158,7 +130,7 @@ class OpenBrainSetup extends LitElement {
     }
     .link-card:hover { background: #253349; color: var(--text-primary); }
     .link-card .icon { font-size: 24px; margin-bottom: 4px; }
-  `;
+  `];
 
   constructor() {
     super();

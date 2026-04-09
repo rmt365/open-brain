@@ -1,4 +1,5 @@
 import { LitElement, html, css, unsafeHTML } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js';
+import { tokens } from './shared-styles.js';
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked@15/lib/marked.esm.js';
 import './backup-indicator.js';
 import './api-key-dialog.js';
@@ -35,23 +36,17 @@ class OpenBrainChat extends LitElement {
     _queryHistory: { type: Array, state: true },
   };
 
-  static styles = css`
+  static styles = [tokens, css`
     :host {
       display: flex;
       flex-direction: column;
       height: 100dvh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #e2e8f0;
-      background: #0f0e1a;
-      --header-bg: #1e1b4b;
+      background: var(--bg-page);
+      --header-bg: var(--bg-header);
       --user-bubble: #4338ca;
-      --system-bubble: #1e293b;
-      --input-bg: #1a1830;
-      --input-border: #312e81;
-      --accent: #818cf8;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
+      --system-bubble: var(--bg-card);
+      --input-bg: var(--bg-input);
+      --input-border: var(--border);
     }
 
     /* Header */
@@ -108,17 +103,6 @@ class OpenBrainChat extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
-    }
-
-    .status-dot.offline {
-      background: #ef4444;
     }
 
     .settings-btn {
@@ -936,7 +920,7 @@ class OpenBrainChat extends LitElement {
       font-size: 14px;
       line-height: 1.6;
     }
-  `;
+  `];
 
   constructor() {
     super();
@@ -1949,6 +1933,7 @@ class OpenBrainChat extends LitElement {
         <div class="header-right">
           <a href="${BASE_PATH}/ui/browse" class="header-nav-link" title="Browse thoughts">&#128218;</a>
           <a href="${BASE_PATH}/ui/explore" class="header-nav-link" title="Explore brain">&#127758;</a>
+          <a href="${BASE_PATH}/ui/keys" class="header-nav-link" title="Manage API keys">&#128273;</a>
           <backup-indicator></backup-indicator>
           <div class="header-status">
             <div class="status-dot ${this.online ? '' : 'offline'}"></div>

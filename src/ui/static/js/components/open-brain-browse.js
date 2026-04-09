@@ -1,50 +1,9 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { sharedStyles } from './shared-styles.js';
+import { TYPE_COLORS, TYPE_LABELS, THOUGHT_TYPES } from './type-colors.js';
 import './backup-indicator.js';
 import './api-key-dialog.js';
 import { hasApiKey, getAuthHeaders } from './auth-mixin.js';
-
-const BASE_PATH = window.__BASE_PATH || '';
-
-// Type badge colors
-const TYPE_COLORS = {
-  reference: '#818cf8',
-  idea: '#60a5fa',
-  task: '#f59e0b',
-  note: '#94a3b8',
-  observation: '#22c55e',
-  question: '#06b6d4',
-  decision: '#a855f7',
-  reflection: '#ec4899',
-  expense: '#f97316',
-  contract: '#14b8a6',
-  maintenance: '#84cc16',
-  insurance: '#0ea5e9',
-  event: '#fb7185',
-  person: '#10b981',
-};
-
-// Abbreviated type labels
-const TYPE_LABELS = {
-  reference: 'ref',
-  idea: 'idea',
-  task: 'task',
-  note: 'note',
-  observation: 'obs',
-  question: 'qn',
-  decision: 'dec',
-  reflection: 'refl',
-  expense: 'exp',
-  contract: 'contract',
-  maintenance: 'maint',
-  insurance: 'ins',
-  event: 'event',
-  person: 'person',
-};
-
-const THOUGHT_TYPES = [
-  'reference', 'idea', 'task', 'note', 'observation', 'question', 'decision', 'reflection',
-  'expense', 'contract', 'maintenance', 'insurance', 'event', 'person',
-];
 
 class OpenBrainBrowse extends LitElement {
   static properties = {
@@ -63,65 +22,16 @@ class OpenBrainBrowse extends LitElement {
     _showApiKeyDialog: { type: Boolean, state: true },
   };
 
-  static styles = css`
+  static styles = [sharedStyles, css`
     :host {
       display: flex;
       flex-direction: column;
       height: 100dvh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #e2e8f0;
-      background: #0f0e1a;
-      --header-bg: #1e1b4b;
-      --accent: #818cf8;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --card-bg: #1e293b;
-      --input-bg: #1a1830;
-      --input-border: #312e81;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      padding: 12px 16px;
-      background: var(--header-bg);
-      gap: 10px;
-      flex-shrink: 0;
-    }
-    .header-icon { font-size: 24px; }
-    .header-title {
-      font-size: 16px;
-      font-weight: 600;
-      flex: 1;
-    }
-    .header-nav-link {
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 18px;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: background 0.15s;
-    }
-    .header-nav-link:hover {
-      background: rgba(255,255,255,0.1);
-    }
-    .header-status {
-      font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
-    }
-    .status-dot.offline {
-      background: #ef4444;
-      color: var(--text-primary);
+      background: var(--bg-page);
+      --card-bg: var(--bg-card);
+      --input-bg: var(--bg-input);
+      --input-border: var(--border);
+      --header-bg: var(--bg-header);
     }
 
     .controls {
@@ -329,34 +239,6 @@ class OpenBrainBrowse extends LitElement {
       border-top: 1px solid rgba(255,255,255,0.05);
       text-align: right;
     }
-    .delete-btn {
-      background: none;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: #ef4444;
-      padding: 4px 12px;
-      border-radius: 6px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .delete-btn:hover {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: #ef4444;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-muted);
-    }
-    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
-
-    .spinner {
-      text-align: center;
-      padding: 20px;
-      color: var(--text-muted);
-    }
-
     .lightbox-overlay {
       position: fixed;
       inset: 0;
@@ -381,7 +263,7 @@ class OpenBrainBrowse extends LitElement {
       cursor: pointer;
     }
     .doc-link:hover { text-decoration: underline; }
-  `;
+  `];
 
   constructor() {
     super();
@@ -646,8 +528,8 @@ class OpenBrainBrowse extends LitElement {
       <div class="thought-list">
         ${this._thoughts.length === 0 && !this._loading ? html`
           <div class="empty-state">
-            <div class="icon">&#129504;</div>
-            <p>${this._searchQuery ? 'No matching thoughts found.' : 'No thoughts yet. Go capture some!'}</p>
+            <span class="empty-icon">&#129504;</span>
+            <span>${this._searchQuery ? 'No matching thoughts found.' : 'No thoughts yet. Go capture some!'}</span>
           </div>
         ` : ''}
 
@@ -656,7 +538,7 @@ class OpenBrainBrowse extends LitElement {
           : this._renderRow(t)
         )}
 
-        ${this._loading ? html`<div class="spinner">Loading...</div>` : ''}
+        ${this._loading ? html`<div class="loading"></div>` : ''}
 
         ${!this._loading && this._hasMore && this._thoughts.length > 0 ? html`
           <div class="load-more">
@@ -792,7 +674,7 @@ class OpenBrainBrowse extends LitElement {
           </div>
 
           <div class="delete-row">
-            <button class="delete-btn" @click=${(e) => { e.stopPropagation(); this._deleteThought(t.id); }}>Delete</button>
+            <button class="btn btn-danger" @click=${(e) => { e.stopPropagation(); this._deleteThought(t.id); }}>Delete</button>
           </div>
         </div>
       </div>

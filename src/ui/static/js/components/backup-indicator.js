@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+import { tokens } from './shared-styles.js';
 
 const BASE_PATH = window.__BASE_PATH || '';
 
@@ -20,7 +21,7 @@ class BackupIndicator extends LitElement {
     _showTooltip: { type: Boolean, state: true },
   };
 
-  static styles = css`
+  static styles = [tokens, css`
     :host {
       display: inline-flex;
       align-items: center;
@@ -78,7 +79,7 @@ class BackupIndicator extends LitElement {
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
       line-height: 1.5;
     }
-  `;
+  `];
 
   constructor() {
     super();
