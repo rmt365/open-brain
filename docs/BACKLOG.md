@@ -731,6 +731,189 @@ Extend the OB-017 gardener with type-specific aging rules to reduce query noise 
 
 ---
 
+### OB-025: BoW Lens — Creator Corpus Capabilities as Opt-In Add-On
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-025 |
+| **Status** | proposed |
+| **Priority** | critical |
+| **Added** | Apr 20, 2026 |
+
+Extend Open Brain with the schema, processing pipeline, and MCP surface needed for a creator's Body of Work, exposed as an opt-in lens. An EOB instance with the BoW lens turned on becomes the unified home for a creator's personal context AND their published corpus — no separate BoW service required.
+
+**Why:** Per ARCHITECTURE-BRAINS.md (lens model section), OB and BoW share an owner — the individual — so they belong in one sovereign instance. Splitting them across two services violates the sovereignty principle the architecture rests on. This item makes the merge real.
+
+**Scope:**
+
+**Schema additions (activated when lens enabled):**
+- `sources` — podcast episodes, articles, manuscripts, audio files; links to raw media in cold storage
+- `idea_units` — extracted ideas from sources, with provenance back to source + timestamp
+- `themes` — clustered/curated themes across idea_units
+- `voice_profiles` + `voice_print_elements` — tone, cadence, vocabulary analysis
+- `claims` — surfaced factual/argumentative claims with supporting sources
+- `worldview_elements` — stance/belief entries with lifecycle (active/evolved/superseded/retracted per BOW-007)
+
+**Processing pipeline (only runs when lens enabled):**
+- Transcription (WhisperX with PyTorch 2.6 safeguards OR AssemblyAI fallback)
+- Chunking + embedding (existing OB embeddings pipeline extended for longer sources)
+- Theme clustering + curation (LLM-assisted)
+- Voice analysis (uses compact-table prompt format per CLAUDE.md)
+- Claims extraction
+- Worldview analysis
+
+**MCP tools (exposed when lens enabled):**
+- Extends existing OB tools (`capture_thought`, `search_thoughts`) with BoW-specific ones: `explore_themes`, `get_voice_profile`, `find_related_ideas`, `get_stance_history`, `ingest_source`
+
+**Gardener rules:**
+- Publication-awareness: draft / private / public visibility per source
+- Theme maintenance (dedup, merge) — references BOW's prior theme-proliferation work
+
+**Operational:**
+- Python sidecar (bow-processing, bow-processing-light) becomes an optional service deployed alongside an EOB instance only when BoW lens is enabled
+- Ollama/embedding model stays shared with the OB lens
+- Lens toggle is a per-instance config, not a per-user thing within a shared instance (sovereignty = one instance per person)
+
+**Depends on:** OB-010 (knowledge-core audit identifies shared primitives), OB-013 (grants — needed to expose BoW lens differently from OB lens to external clients)
+
+**Blocks:** OB-026 (Tina's unified deployment)
+
+---
+
+### OB-026: Tina's Unified EOB — Production Deployment
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-026 |
+| **Status** | proposed |
+| **Priority** | critical |
+| **Added** | Apr 20, 2026 |
+
+Migrate Tina to a single EOB instance that serves both her personal context (OB) and her creator corpus (BoW lens). Retire the separate `tina-brain` (OB) and `tina-bow` (BoW) instances.
+
+**Why:** Tina is our dogfooding customer for production. Two instances per person is operationally wasteful and violates the sovereignty principle established in ARCHITECTURE-BRAINS. One instance is simpler for her and validates the unified architecture.
+
+**Scope:**
+
+**Pre-migration (verification):**
+- Confirm OB-025 (BoW lens) is functional in dev
+- Snapshot `tina-brain` and `tina-bow` databases
+- Dry-run migration script against a scratch instance
+
+**Data migration:**
+- Stand up a single `tina-eob` instance with BoW lens enabled
+- Port existing `tina-brain` thoughts into the unified schema (lens-aware — OB content stays in the OB lens)
+- Port existing `tina-bow` sources, idea_units, themes, voice profile into the BoW lens tables
+- Preserve all IDs or map old→new with a redirect table so existing MCP integrations don't break
+
+**Cutover:**
+- Update MCP client configs (Claude Desktop, Telegram bot, any agents) to point at `tina-eob`
+- Update Traefik routing: `tina.brain.cerulean.studio` points to the unified instance; old BoW URL redirects
+- Monitor for 48h before decommissioning old instances
+
+**Decommission:**
+- Archive old instance databases to Wasabi with retention
+- Remove `tina-brain` and `tina-bow` compose configurations
+
+**Acceptance:**
+- Tina can query her personal notes AND her corpus from one chat / MCP tool
+- Her voice profile is accessible via a grant (e.g., to Forge / BPS)
+- All prior data is retrievable
+- No duplicate storage, no cross-instance federation
+
+**Depends on:** OB-025 (BoW lens must exist)
+
+**Blocks:** None — this is the first real production EOB; subsequent creator deployments follow this pattern
+
+---
+
+### OB-027: Chat Archive Ingestion
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-027 |
+| **Status** | proposed |
+| **Priority** | medium |
+| **Added** | Apr 20, 2026 |
+
+Import AI conversation archives (ChatGPT, Claude Projects, Notion AI, Gemini exports) as EOB source material. Classifier routes each chunk to the right lens — personal operating context (OB) vs publishable/corpus material (BoW) — or flags for user review.
+
+**Why:** Nate Jones' "Bring Your Own Context" thesis argues that six months of serious AI use accumulates real professional capital — how you think, your domain vocabulary, your workflow calibration — that is trapped inside platforms today. EOB is the right home for that data. This gives users a one-time import that seeds their instance with their existing AI working intelligence rather than starting cold.
+
+**Scope:**
+
+**Supported formats (phased):**
+- Phase 1: Claude Projects export (JSON)
+- Phase 2: ChatGPT conversation export (JSON/ZIP)
+- Phase 3: Notion AI export, Gemini export, raw markdown conversation dumps
+
+**Classification routing:**
+- Per-chunk classifier decides: OB lens (preferences, patterns, rhythms, personal notes) vs BoW lens (drafts, ideas, frameworks, published-ready content) vs "unclear — surface for user"
+- Reuse existing gardener classification infrastructure where possible
+- User can reclassify via the review queue
+
+**Deduplication:**
+- Content hash dedup (same content imported twice is ignored)
+- Semantic dedup against existing thoughts (flag likely duplicates, don't auto-merge)
+
+**Provenance:**
+- Every imported thought tagged with `source_channel: "chat_import"` and `import_source: "chatgpt" | "claude" | ...`
+- Original conversation ID and timestamp preserved in metadata for traceability
+
+**Acceptance:**
+- User can upload a ChatGPT export (ZIP) and within N minutes have classified, embedded, searchable content in their EOB
+- Classifier routes at least 80% of chunks to a confident lens; the rest surface for review
+- No duplicate chunks if imported twice
+
+**Depends on:** OB-001 (bulk import primitives), OB-017 (gardener classification)
+
+**Blocks:** None, but enables a compelling onboarding story for OB-018's interview flow
+
+---
+
+### OB-028: Portable Context Bundle Export (BYOC)
+
+| Field | Value |
+|-------|-------|
+| **ID** | OB-028 |
+| **Status** | proposed |
+| **Priority** | low |
+| **Added** | Apr 20, 2026 |
+
+Export a portable, signed context bundle representing "what a new AI client needs to get up to speed on this user." Bundle is the materialized form of a grant — same access model, different delivery.
+
+**Why:** Per ARCHITECTURE-BRAINS.md (grant patterns): *"The grant system IS the portability system."* This item makes that concrete. User moving from one AI to another runs an export against a fresh grant and hands over the bundle. No dependency on the destination implementing MCP or any particular API.
+
+**Scope:**
+
+**Bundle contents:**
+- `USER.md` — who the user is, what they do, how they communicate (generated from OB content in the grant's scope)
+- `SOUL.md` — how an agent should act on their behalf (decision thresholds, escalation rules, tone)
+- `HEARTBEAT.md` — operating rhythms (when they work, what they check when, how they batch tasks)
+- `operating-model.json` — structured version of the above for programmatic consumption
+- `voice-profile.json` — if BoW lens is granted, include voice profile
+- `manifest.json` — grant scope, signature, expiry, provenance
+
+**Generation:**
+- User (or agent) initiates: "export a bundle for my new Claude session, read-only, expires in 30 days"
+- System creates a grant internally, runs the materialization, packages into a tarball/JSON bundle, signs with HMAC
+- Bundle is delivered via download or MCP tool response
+
+**Security:**
+- Every bundle has an embedded grant ID so it can be revoked after the fact
+- Signed so the receiving client can verify integrity
+- Optional: include an encryption-at-rest option for bundles stored outside trusted infrastructure
+
+**Acceptance:**
+- User can export a bundle, paste its contents into a fresh AI session, and that AI meaningfully "knows" them within the scope granted
+- Revoking the underlying grant invalidates any downstream use of the bundle via its embedded ID (when the AI re-validates)
+
+**Depends on:** OB-013 (grants — required foundation), OB-018 (onboarding interview — produces richer USER.md / SOUL.md content)
+
+**Blocks:** None
+
+---
+
 ### OB-024: Audio Capture & Transcription
 
 | Field | Value |

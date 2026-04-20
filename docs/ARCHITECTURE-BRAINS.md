@@ -60,6 +60,36 @@ Robin's personal Docker knowledge lives in OB. "This is how we deploy at Cerulea
 
 Robin's OB can grant read access to both BoB instances. Each BoB captures its own institutional decisions.
 
+## Architectural evolution: the lens model
+
+**The three-brain framing describes ownership, not storage.** Applying the sovereignty principle literally — "your data lives in one container you control" — collapses the picture to **two ownership boundaries**:
+
+| Ownership boundary | Who owns | Which brains |
+|---|---|---|
+| **Personal** | An individual | OB + BoW (same person owns both) |
+| **Institutional** | A business entity | BoB |
+
+OB and BoW share an owner. Splitting a person's data across two instances would itself violate sovereignty — it fragments their own asset across silos that then have to federate, recreating the exact portability problem the architecture is meant to solve.
+
+**So in practice: one instance per person, with multiple lenses active.** We call the combined thing **Enhanced Open Brain (EOB)** — an OB with optional BoW capabilities enabled for creators and thought leaders.
+
+### What "lens" means concretely
+
+Lenses are **not separate databases.** They are:
+
+1. **Schema subsets** — `thoughts` is always present; creator-corpus tables (`idea_units`, `themes`, `voice_profiles`, `sources`) are opt-in
+2. **Processing pipelines** — the BoW lens activates transcription (WhisperX), chunking/clustering, voice analysis, theme curation
+3. **MCP surfaces** — the grant system decides which lens an external client sees. A TFS grant exposes the BoW lens. An employer grant exposes only the OB lens.
+4. **Gardener rules** — BoW content gets publication-awareness (draft/private/public); OB content stays in the relaxed regime
+
+Most people run only the OB lens. Creators turn on the BoW lens. The same codebase supports both; the person chooses which aspects to populate.
+
+BoB remains a separate instance because its owner is different (the business).
+
+### Why this supersedes the "BoW may merge into OB later" hint
+
+The "Three brains, three purposes" section above lists BoW with: *"Future: May merge into OB if the separation proves unnecessary."* The lens model makes this merge necessary, not optional — fragmenting a single person's data across two sovereign stores recreates the portability problem the architecture exists to solve. The merge is the architectural direction. Codebase consolidation follows.
+
 ## Staff and "bring your own brain"
 
 - **Every person gets their own OB if they want one.** It's theirs. The business never sees inside it.
@@ -176,6 +206,49 @@ Robin grants Tina:
 - **Active grant** scoped to: family, finance, household partitions → she sees bank info, insurance, household items now
 - **On-death grant** scoped to: all partitions EXCEPT excluded → she gets the full picture minus private journals
 - **Excluded partitions:** personal reflections, private journals → no grant of any type, ever
+
+## Grant patterns in practice
+
+Access tiers (above) describe **when** a grant is active. Grant patterns describe **what shape** the grant takes. Three patterns recur:
+
+### 1. Consumer grant (read-only)
+
+External system queries the vault but cannot write back.
+
+- **Personal AI** → EOB: full scope, reads all lenses the user has enabled
+- **Employer** → EOB: scoped to professional aspects, OB lens only, typically read-only
+- **Reader / fan** → EOB: voice profile or published-work slice only, read-only
+
+### 2. Collaborative grant (bidirectional, scoped)
+
+External system both reads AND writes into a specific partition.
+
+- **TFS BPS** → EOB: reads BoW corpus to produce a book; writes back the final manuscript and production artifacts into a designated partition on completion
+- Writebacks are **origin-tagged** so "remove everything TFS wrote" is a clean operation on revocation
+- The writing party cannot modify records outside their grant's write partition
+
+### 3. Institutional separation (dual-cabinet)
+
+Employer does **not** write into the employee's EOB. Instead:
+
+- **Employer reads from employee's EOB** (consumer grant, scoped to professional lens)
+- **Employer writes to their own BoB** — institutional knowledge captured with attribution, stays when the employee leaves
+- **Employee may hold a read-grant into the employer's BoB** for artifacts they co-created, so they can carry those forward (if the employer permits)
+
+This is the "two filing cabinets" pattern: personal cabinet travels with the person; employer cabinet stays with the employer; neither can rewrite the other.
+
+### Revocation
+
+Every grant is revocable. On revocation:
+- Future access is cut immediately
+- Audit trail is preserved (who saw what, when)
+- For collaborative grants, origin-tagged writebacks can be removed or retained (user chooses at revocation time)
+
+### Portable bundles (BYOC)
+
+A **portable context bundle** is the inverse of a grant: snapshot what a grant could see, package it, sign it. A user moving between AI clients runs a one-shot export against a new grant and hands over the bundle.
+
+**The grant system IS the portability system.** There is no separate export architecture — every "get me up to speed" handoff is just a consumer grant materialized to a file.
 
 ## Memory consolidation (thought decay)
 
