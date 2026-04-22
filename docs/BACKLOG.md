@@ -384,36 +384,148 @@ Implement three update scenarios: user updates to captured knowledge, re-ingesti
 
 ---
 
-### OB-013: Grant Management System
+### OB-013: Grant Management System (EOB-wide)
 
 | Field | Value |
 |-------|-------|
 | **ID** | OB-013 |
-| **Status** | proposed |
-| **Priority** | medium |
+| **Status** | proposed (workshop pass 1 complete 2026-04-22) |
+| **Priority** | high |
 | **Added** | Mar 20, 2026 |
+| **Expanded** | Apr 22, 2026 (BOW-042 workshop in P2B repo) |
 
-Build a conversational grant management system for controlling external access to the vault. All grant management happens through the chat interface — no separate admin panel.
+**This is the user's data-sovereignty system.** Every external party that touches user data — operators, LLMs, employers, social platforms, software agents, people — does so through a scoped, revocable, auditable grant issued from the EOB by the owner. No OAuth. No central authority. User directly issues signed capability tokens.
 
-**Core principle:** User is sole authority. Grants are explicit, scoped, and revocable. No OAuth. User directly issues tokens with defined manifests.
+**Core principle:** user is sole authority. Grants are explicit, scoped, and revocable. The EOB stands alone; Cerulean Platform or any other middleware is optional — the EOB's own MCP surface is the primary grant-management interface, usable directly from the user's LLM-of-choice.
 
-**Four tools (chat-only, never exposed to external parties):**
-- `issue_grant` — create signed token with embedded tool manifest (displayed once only)
-- `list_grants` — all active grants with scope and usage summary (renders as CardGrid)
-- `check_usage` — audit trail for specific grant or party (renders as Timeline)
-- `revoke_grant` — invalidate token, preserve audit history and written records
+---
 
-**Confirmation flow:** All state-changing operations (issue, revoke) require explicit user confirmation via LLM before execution.
+#### Grant primitive
 
-**Token security:**
-- HMAC-SHA256 signed tokens with embedded manifest
-- Server validates signature AND manifest on every request
-- Raw token never stored — issued once at creation, lost = revoke and reissue
-- Expiry enforced at request time
+A grant is a tuple of:
 
-**LLM routing:** System prompt includes example intents for issue, list, check usage, and revoke patterns.
+- **Grantee** — who is being granted access. Types:
+  - Operators (TFS, employer, agency) — organizational, staff-multiplexed
+  - Software agents — LLM-of-choice (Claude, GPT, Gemini, local Ollama), payroll systems, tax apps, social platforms, CRMs
+  - People — co-author, family member, estate executor
+  - The user's own devices and LLM instances
 
-**Depends on:** OB-012 (external write system, audit trail), OB-011 (rendering components)
+- **Partitions** — which data buckets the grant scopes to. Categories:
+  - **Lens partitions** — `ob_lens`, `bow_lens` (the top-level physical schema split; see `ARCHITECTURE-BRAINS.md`)
+  - **Semantic partitions** — `identity` (tombstone: name, address, contact, legal IDs, emergency contact), `finance`, `health`, `social_graph`, `employment`, `skills`, `preferences`
+  - **Area partitions** — OB life areas (work, family, technology, creative, etc.)
+  - **Tag partitions** — user-defined tags (e.g., `employer-shareable`, `public-bio`, `share-with-estate`)
+
+- **Operations** — what the grantee can do within the partitions: `read`, `enumerate`, `export`, `write`, `update`, `delete`.
+
+- **Lifecycle** — when the grant is active:
+  - Time-bounded (project duration, fixed expiry)
+  - Event-bounded ("until employment ends", "on my death", "on project completion")
+  - Open-ended (until revoked)
+  - Auto-renewing on activity
+
+- **Surface** — how the grantee interacts:
+  - MCP (LLM-native grantees — primary)
+  - REST (conventional software, webhooks)
+  - Portable bundle export (one-shot snapshot; "BYOC" pattern)
+
+- **Safety knobs** — optional per-grant:
+  - Rate limits
+  - Audit log (always on)
+  - Notification-on-access preferences
+  - Default revocation behavior for origin-tagged content (see below)
+
+---
+
+#### Hard invariants (cannot be overridden by any grant configuration)
+
+1. **OB-lens is inviolate.** No grant, from any source, can grant OB-lens read or write access to anyone other than the owner. Enforced at grant-signing validation. The system rejects provisioning packages or grant issuances that violate this floor. *(BoW-lens is permissive by contrast — operators commonly need full read+write to deliver creator services.)*
+2. **Access ≠ attribution.** Origin tags (who authored a record) are metadata for audit and optional cleanup. They are **not** access control. Revocation severs access; it does not delete content. Content and attribution survive revocation. "Remove everything grantee X wrote" is a creator-elected batch action (delete-by-origin-tag), not the default revocation behavior.
+3. **Owner key is sovereign.** All grants are ultimately issued, modified, or revoked via the owner key. Operator sub-authority (provisioning packages below) stands only insofar as it was attached to creation and countersigned by the owner on claim.
+4. **DID-style identifier.** Grant tokens carry a persistent identifier for the EOB, not a raw URL. A lightweight resolver maps DID → current endpoint so that migration/re-hosting does not break grants. Aligns with ICP-blockchain sovereignty direction.
+
+---
+
+#### Provisioning packages (operator-assisted EOB creation)
+
+Some EOBs are stood up by an operator (e.g., TFS creating a workspace for a new audiobook client) before the creator ever logs in. A **provisioning package** is a signed bundle attached to such an EOB at creation time, containing:
+- EOB config (services, lenses, infra)
+- Attached grants the operator proposes (shape + duration + scope — typically BoW-lens-scoped)
+- Operator identity
+- Creator claim instructions
+
+The operator has operational rights **equal to the attached grants** from provisioning forward — nothing more, nothing less. Creator's first login registers the owner key, which countersigns the package's grants, making them durable and creator-revocable. **Ratification, not demotion.** This reflects real service relationships (high-touch operators like TFS need continuous access; asking them to re-negotiate access post-claim is a posture mismatch).
+
+The OB-lens-inviolate invariant applies at provisioning time: a provisioning package that tries to grant OB-lens rights is rejected at signing validation. Operator-assisted EOBs default to BoW-lens only; the creator can enable OB-lens for personal use post-claim.
+
+Two onboarding paths:
+- **Self-provisioning** — creator signs up directly, no attached grants, sovereign from t=0.
+- **Operator-assisted provisioning** — creator ratifies the provisioning package on first login.
+
+Both produce the same EOB shape; they differ only in who initiates and whether there are pre-attached grants.
+
+---
+
+#### Token security and validation
+
+- HMAC-SHA256 (or equivalent) signed tokens with embedded manifest (grantee identity, partitions, operations, lifecycle, surface, safety knobs).
+- Raw token issued once at creation; never stored server-side. Lost token = revoke and reissue.
+- Grantees verify offline against the EOB's published pubkey — grant validation does **not** require a live EOB call per request.
+- EOB publishes a **revocation list** (signed, timestamped). Grantees cache it and refresh on a schedule. Revocation propagates within cache-refresh interval — accepted tradeoff for offline-first resilience.
+- Expiry enforced at request time (both at grantee cache level and at EOB if the grantee hits it).
+
+---
+
+#### Four user-facing tools (conversational, exposed via EOB's own MCP)
+
+- `issue_grant` — create signed token with embedded manifest (displayed once only). Takes grantee details, partitions, operations, lifecycle, surface. Confirms via LLM before issuance.
+- `list_grants` — all active grants with scope and usage summary. Renders as a card grid. Filterable by grantee, partition, status.
+- `check_usage` — audit trail for a specific grant or party. Renders as timeline with access events.
+- `revoke_grant` — invalidate token, preserve audit history and origin-tagged writes. Optional "also remove everything this grantee wrote" batch action.
+
+All four tools are **conversational and chat-only** — never exposed to external parties. State-changing operations (issue, revoke) require explicit user confirmation.
+
+The Cerulean Platform may surface a **dashboard UI** over these same tools for operator staff managing many grants across many customers — but every operation still flows through the EOB's grant tools. Platform is nicer chrome, not a source of truth.
+
+---
+
+#### Validation — use cases that stress the primitive
+
+Each use case must be expressible as a concrete grant tuple. These serve as scenarios for the design doc and tests.
+
+1. **Employer tombstone access.** `(grantee: Acme HR, partitions: identity.{name,address,email,phone,legal_id,emergency_contact}, operations: [read], lifecycle: employment_active, surface: REST)`. Streamlines onboarding (tax forms, employee directory); on identity change, employer's system re-reads authoritative copy rather than re-prompting the user.
+2. **LLM-of-choice skills portability.** `(grantee: new-LLM-client, partitions: skills + preferences, operations: [read], lifecycle: until_revoked, surface: MCP)`. User migrates between LLMs; accumulated working-style (constraints, preferences, "do this / don't do that") travels without secrets.
+3. **Social graph sovereignty.** `(grantee: Bluesky, partitions: social_graph, operations: [read, write_augmented], lifecycle: until_revoked, surface: MCP or REST)`. Graph is canonical in OB; each SM platform is a consumer with optional augmentation rights. Moving to another platform = issuing a new grant.
+4. **TFS audiobook project.** `(grantee: TFS, partitions: bow_lens, operations: [read, write], lifecycle: project_duration, surface: MCP + Platform-mediated UI)`. Origin-tagged writes (`origin: tfs-project-xyz`). Issued via provisioning package; ratified on first login.
+5. **Personal AI consumer grant** (baseline). `(grantee: user's primary LLM, partitions: [all], operations: [read], lifecycle: until_revoked, surface: MCP)`. The standard "plug my AI into my brain" grant.
+
+---
+
+#### Deferred (future workshop rounds, not this iteration)
+
+- **Event-push primitive.** The employer-pushes-pay-events-into-OB case needs a one-way event stream into a subscribed partition — distinct from read/write MCP. When built, will be a grant-gated append-only webhook scoped to a specific partition; pub/sub is over-engineering until multiple subscribers exist.
+- **Sub-grants.** A grantee issuing narrower grants on the user's behalf (e.g., TFS sub-grants a narrator into a slice of the BoW lens). Noted as a valid pattern; first iteration issues all grants directly from owner. If/when added, cap depth at one level — sub-grants terminate; anyone further needs a direct owner grant. Keeps grant trees auditable.
+
+#### Open questions for subsequent workshops
+
+1. Partition schema registry — fixed enum vs. extensible with a user-driven registration process.
+2. Ratification-rejection flow — creator reviews provisioning package on first login and says "no." Options: negotiate (operator re-proposes), export+cancel, archive+delete. Design needed.
+3. Project-end workflow — how grants transition at end-of-engagement (auto-expire on event, archive, export, full revoke with keep-content default).
+4. Multi-operator concurrent grants — origin-tagging and partition isolation under multiple active relationships (creator working with TFS + another coach + social platform + employer simultaneously).
+5. Revocation list distribution cadence + offline-first consistency guarantees.
+6. Quarterly grant-health nudge UX ("TFS accessed your workspace [stats] — keep / customize / revoke?") — channel, cadence, trigger conditions.
+7. Grant-issuance preview copy: plain-language rendering of a grant manifest that a non-technical creator can evaluate and trust. This is where sovereignty becomes real for users.
+
+---
+
+#### Cross-references
+
+- `ARCHITECTURE-BRAINS.md` — lens model, grant patterns (consumer / collaborative / institutional), ownership boundaries, portable bundles
+- P2B `bow/docs/BACKLOG.md` BOW-042 — workshop log of the 2026-04-22 session that expanded this item
+- OB-012 (external write system, audit trail), OB-011 (rendering components) — prerequisites for tools
+
+**Depends on:** OB-012, OB-011.
+**Blocks:** Operator-assisted provisioning (P2B PLAT-048), BoW-lens activation flows, any cross-EOB federation or co-op work.
 
 ---
 
