@@ -1,3 +1,5 @@
+# DEPRECATED — Open Brain is folding into Brain. Open items merged to (sibling repo) P2B-Service/brain/docs/BACKLOG.md on 2026-05-01. This file is preserved for history; do not add new items here.
+
 # Open Brain - Backlog
 
 Items use `OB-{NNN}` IDs. Status flow: `proposed` → `planned` → `in-progress` → `done`.
